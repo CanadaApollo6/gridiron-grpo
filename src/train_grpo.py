@@ -25,6 +25,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from trl import GRPOConfig, GRPOTrainer
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from model_utils import pick_attn_impl  # noqa: E402
 from rewards.verifiers import correctness_reward, format_reward  # noqa: E402
 
 
@@ -43,6 +44,9 @@ def parse_args():
     ap.add_argument("--per_device_bs", type=int, default=8)
     ap.add_argument("--grad_accum", type=int, default=4)
     ap.add_argument("--no_vllm", action="store_true")
+    ap.add_argument("--vllm_mode", default="colocate",
+                    help="colocate = vLLM shares the training GPU (single-GPU runs); "
+                         "server = expects a separate `trl vllm-serve` process")
     return ap.parse_args()
 
 
@@ -53,10 +57,12 @@ def main():
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
 
+    attn_impl = pick_attn_impl()
+    print(f"using attn_implementation={attn_impl}")
     model = AutoModelForCausalLM.from_pretrained(
         args.model,
         torch_dtype=torch.bfloat16,
-        attn_implementation="flash_attention_2",
+        attn_implementation=attn_impl,
     )
 
     # Dataset already has a chat-format `prompt` column + the reward columns
@@ -70,7 +76,12 @@ def main():
                         "gate_proj", "up_proj", "down_proj"],
     )
 
-    config = GRPOConfig(
+    # The GRPOConfig field names have moved across TRL releases (this is the #1
+    # gotcha called out in the README). Rather than pass a fixed kwargs blob that
+    # might crash on a renamed/removed field, we keep the *desired* config here and
+    # filter it down to what the installed GRPOConfig actually accepts, warning on
+    # anything dropped. The 20-step smoke run then confirms the survivors behave.
+    desired = dict(
         output_dir=args.out,
         learning_rate=args.lr,
         beta=args.beta,
@@ -85,10 +96,18 @@ def main():
         gradient_checkpointing=True,
         logging_steps=10,
         save_steps=200,
-        use_vllm=not args.no_vllm,           # vLLM-accelerated rollouts on the H100
+        use_vllm=not args.no_vllm,           # vLLM-accelerated rollouts
+        vllm_mode=args.vllm_mode,            # colocate: vLLM shares the single GPU
         vllm_gpu_memory_utilization=0.30,
         report_to="none",                    # swap to "wandb" to log curves
     )
+    import dataclasses
+    accepted = {f.name for f in dataclasses.fields(GRPOConfig)}
+    unknown = sorted(set(desired) - accepted)
+    if unknown:
+        print(f"[warn] GRPOConfig in this TRL build does not accept: {unknown} "
+              f"-- dropping them (check the smoke run still trains as intended).")
+    config = GRPOConfig(**{k: v for k, v in desired.items() if k in accepted})
 
     trainer = GRPOTrainer(
         model=model,

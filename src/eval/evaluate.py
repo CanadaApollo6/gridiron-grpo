@@ -24,6 +24,7 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from model_utils import pick_attn_impl  # noqa: E402
 from prompts import extract_answer  # noqa: E402
 from rewards.verifiers import _check  # noqa: E402
 
@@ -34,7 +35,7 @@ def load_model(model_name: str, adapter: str | None):
         tok.pad_token = tok.eos_token
     model = AutoModelForCausalLM.from_pretrained(
         model_name, torch_dtype=torch.bfloat16,
-        attn_implementation="flash_attention_2", device_map="auto",
+        attn_implementation=pick_attn_impl(), device_map="auto",
     )
     if adapter:
         from peft import PeftModel

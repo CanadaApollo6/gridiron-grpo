@@ -125,8 +125,30 @@ If you build something with it, I'd genuinely love to see it.
 Vendor-neutral by design — rent an H100 wherever you like:
 
 - A **1.5–3B** model + LoRA + group size 8 fits comfortably on one **H100 80GB**; an A100 40GB works with a smaller group or shorter completions.
-- **bf16 + Flash Attention 2** throughout; **vLLM** serves the rollouts (the real throughput bottleneck — see below).
+- **bf16** throughout, with **Flash Attention 2** when it's installed and an automatic fallback to PyTorch `sdpa` when it isn't (see `src/model_utils.py`); **vLLM** serves the rollouts (the real throughput bottleneck — see below).
 - End-to-end reproduction runs **well under $200**, often a fraction of that. RL post-training really has gotten this cheap.
+
+### Run it on Hugging Face Jobs
+
+If you don't want to manage a box, [HF Jobs](https://huggingface.co/docs/hub/jobs) runs the whole pipeline on rented hardware billed by the minute. `scripts/hf_job.sh` is self-contained — it clones this repo inside the container, installs deps, builds data, runs the 20-step smoke test, trains, evaluates, charts, and **pushes the LoRA adapter + results to a Hub repo** (the container's disk is wiped when the Job ends, so this upload is the point).
+
+```bash
+# one-time: a HF account with a positive credit balance (Pro unlocks Jobs;
+# GPU-minutes are pay-as-you-go). The CLI ships with huggingface_hub:
+uvx --from huggingface_hub hf auth login
+
+# launch on a single A100 80GB ($2.50/hr); --secrets HF_TOKEN lets the job push results
+uvx --from huggingface_hub hf jobs run \
+    --flavor a100-large --timeout 4h --secrets HF_TOKEN \
+    pytorch/pytorch:2.6.0-cuda12.4-cudnn9-devel \
+    bash -c "$(curl -fsSL https://raw.githubusercontent.com/CanadaApollo6/gridiron-grpo/main/scripts/hf_job.sh)"
+```
+
+Tune via `-e MAX_STEPS=...`, `-e MODEL=...`, `-e REPO_NAME=...`, or `-e NO_VLLM=1`. Cheaper hardware: `--flavor l40sx1` (48 GB, $1.80/hr). Watch it with `hf jobs logs <id>`; pull the result with `hf jobs ...` → `hf download <namespace>/gridiron-grpo-qwen15b`.
+
+### Validate locally first (free)
+
+Before spending GPU-minutes, confirm the TRL GRPO API matches the code on a tiny model. On a CUDA GPU (≥8 GB) on Windows, `./scripts/smoke_local.ps1` runs a 5-step GRPO smoke on Qwen2.5-0.5B with `--no_vllm` and `sdpa`. If it prints "saved LoRA adapter", the real Job is safe to launch.
 
 ## Caveats (read before you spend GPU hours)
 
