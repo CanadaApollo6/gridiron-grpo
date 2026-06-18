@@ -1,13 +1,21 @@
-# Pin these — the GRPO API in TRL has changed across releases. These versions
-# are known-compatible shapes for the calling conventions used in src/.
-# Verify against what actually installs on your box; bump together if needed.
-torch>=2.4
-transformers>=4.48
-trl>=0.14,<0.18
-peft>=0.13
-datasets>=2.20
-accelerate>=1.0
-vllm>=0.6           # fast GRPO rollouts + optional serving
-flash-attn>=2.6     # attn_implementation="flash_attention_2"
-bitsandbytes>=0.43  # only if you switch LoRA -> QLoRA
-matplotlib>=3.8     # before/after chart
+# Exact pins for a known-good GRPO stack. The TRL GRPO API (and its hard
+# dependency on vLLM at import time) moves across releases, so loose ranges can
+# pull an incompatible combo (e.g. transformers 5.x against trl 0.17). These
+# versions are mutually consistent and what src/ is written against.
+#
+# Platform note: vLLM has no Windows build, and trl>=0.16 imports vLLM at module
+# load — so GRPO does NOT run on native Windows. Use Linux or WSL2 (your local
+# GPU works there), or run it on Hugging Face Jobs (see README).
+torch==2.6.0
+transformers==4.51.3
+trl==0.17.0
+peft==0.15.2
+datasets==3.5.1
+accelerate==1.6.0
+vllm==0.8.5             # fast GRPO rollouts; also required for `import trl` GRPO
+matplotlib==3.10.1      # before/after chart
+huggingface_hub[hf_transfer]==0.30.2   # fast model/result uploads from Jobs
+
+# Optional, not installed by default:
+#   flash-attn>=2.6     # auto-detected; falls back to sdpa (src/model_utils.py)
+#   bitsandbytes>=0.43  # only if you switch LoRA -> QLoRA

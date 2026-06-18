@@ -144,11 +144,15 @@ uvx --from huggingface_hub hf jobs run \
     bash -c "$(curl -fsSL https://raw.githubusercontent.com/CanadaApollo6/gridiron-grpo/main/scripts/hf_job.sh)"
 ```
 
-Tune via `-e MAX_STEPS=...`, `-e MODEL=...`, `-e REPO_NAME=...`, or `-e NO_VLLM=1`. Cheaper hardware: `--flavor l40sx1` (48 GB, $1.80/hr). Watch it with `hf jobs logs <id>`; pull the result with `hf jobs ...` → `hf download <namespace>/gridiron-grpo-qwen15b`.
+Tune via `-e MAX_STEPS=...`, `-e MODEL=...`, `-e REPO_NAME=...`, or `-e NO_VLLM=1`. Cheaper hardware: `--flavor l40sx1` (48 GB, $1.80/hr). Watch it with `hf jobs logs <id>`; pull the result with `hf download <namespace>/gridiron-grpo-qwen15b --local-dir ./out`.
 
-### Validate locally first (free)
+**Validate the Job env for a few cents first.** Add `-e SMOKE_ONLY=1` (and drop `--secrets HF_TOKEN`) to run only the data build + 20-step smoke on the real hardware — a ~5-minute, few-cents confirmation that the pinned stack and TRL GRPO API are happy before you commit to the full 4-hour run.
 
-Before spending GPU-minutes, confirm the TRL GRPO API matches the code on a tiny model. On a CUDA GPU (≥8 GB) on Windows, `./scripts/smoke_local.ps1` runs a 5-step GRPO smoke on Qwen2.5-0.5B with `--no_vllm` and `sdpa`. If it prints "saved LoRA adapter", the real Job is safe to launch.
+### Validate locally first (free, Linux/WSL)
+
+> **Native Windows won't work:** vLLM has no Windows build and `trl>=0.16` imports vLLM at load, so GRPO can't even import there. Use **WSL2** (your local GPU is available via the Windows NVIDIA driver — no extra setup) or any Linux box.
+
+On a CUDA GPU (≥8 GB), `bash scripts/smoke_local.sh` builds a uv venv with the pinned stack and runs a 5-step GRPO smoke on Qwen2.5-0.5B. If it prints "saved LoRA adapter", the pipeline works and the real Job is safe to launch. The 3080 can also do scaled-down _real_ runs (0.5B, smaller group); the 1.5B/group-8 headline config wants the rented A100.
 
 ## Caveats (read before you spend GPU hours)
 

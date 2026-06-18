@@ -5,6 +5,7 @@ runs/
 results/
 *.png
 .venv/
+.venv*/
 wandb/
 .vscode/
 .claude/
