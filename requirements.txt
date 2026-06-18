@@ -1,0 +1,13 @@
+# Pin these — the GRPO API in TRL has changed across releases. These versions
+# are known-compatible shapes for the calling conventions used in src/.
+# Verify against what actually installs on your box; bump together if needed.
+torch>=2.4
+transformers>=4.48
+trl>=0.14,<0.18
+peft>=0.13
+datasets>=2.20
+accelerate>=1.0
+vllm>=0.6           # fast GRPO rollouts + optional serving
+flash-attn>=2.6     # attn_implementation="flash_attention_2"
+bitsandbytes>=0.43  # only if you switch LoRA -> QLoRA
+matplotlib>=3.8     # before/after chart

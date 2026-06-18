@@ -1,0 +1,30 @@
+# Reference hyperparameters for the H100 run. These mirror the CLI defaults in
+# src/train_grpo.py; treat this as the documented config for the blog post.
+model: Qwen/Qwen2.5-1.5B-Instruct
+data: data_out/train.jsonl
+out: runs/grpo-qwen15b
+
+grpo:
+  num_generations: 8        # rollouts per prompt (the GRPO group)
+  learning_rate: 1.0e-6
+  beta: 0.04                # KL to the reference policy
+  temperature: 0.9
+  max_prompt_length: 640
+  max_completion_length: 512
+  per_device_train_batch_size: 8
+  gradient_accumulation_steps: 4
+  max_steps: 1200
+  bf16: true
+  gradient_checkpointing: true
+  use_vllm: true
+  vllm_gpu_memory_utilization: 0.30
+
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+
+rewards:
+  - correctness   # +1.0 exact verifiable match
+  - format        # +0.2 clean <think>/<answer> structure
