@@ -53,10 +53,11 @@ if [ "${USE_VLLM:-0}" = "1" ]; then
 else
     echo "=== 5-step GRPO smoke (Qwen2.5-0.5B, no vLLM) ==="
 fi
-# Launch via `accelerate` (not plain python): vLLM's colocate backend reads the
-# torch-distributed env vars (RANK/WORLD_SIZE/...) that only a launcher sets.
-# Plain `python script.py` -> KeyError: 'RANK'. Single GPU => --num_processes 1.
-$PY -m accelerate.commands.launch --num_processes 1 src/train_grpo.py \
+# Launch via torchrun (not plain python, and not `accelerate launch
+# --num_processes 1` -- that uses accelerate's simple_launcher, which does NOT
+# set the distributed env vars). vLLM's colocate backend reads RANK/WORLD_SIZE/...
+# torchrun always sets them, even for a single process.
+$PY -m torch.distributed.run --nproc_per_node 1 src/train_grpo.py \
     --model Qwen/Qwen2.5-0.5B-Instruct \
     --data data_out/train.jsonl \
     --out runs/smoke-local \
