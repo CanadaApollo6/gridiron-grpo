@@ -168,4 +168,9 @@ I'd rather you learn these from a paragraph than from a wasted run:
 
 Built by **Riel St. Amand** as a hands-on companion to talks and writing on agentic AI and small-model reasoning. The accompanying walkthrough is in [`BLOG_OUTLINE.md`](BLOG_OUTLINE.md).
 
+This repo grew past the original tutorial into a controlled research study. Two docs track that:
+
+- [`JOURNEY.md`](JOURNEY.md) — the full narrative of how we got here: the bug gauntlet, the flat results, the diagnosis (KL drift), the literature check, and the pivot.
+- [`EXPERIMENTS.md`](EXPERIMENTS.md) — the experimental design for _"When does RLVR help on structured/tabular verifiable reasoning, across model families?"_
+
 **License:** MIT. Football data is synthetic — no real NFL data ships in this repo.
