@@ -100,10 +100,14 @@ torchrun --nproc_per_node 1 src/train_grpo.py --model "$MODEL" \
     --max_steps "$MAX_STEPS" $NO_VLLM_FLAG $EXTRA_TRAIN_ARGS
 
 # --- 6. Eval base vs. tuned + chart -----------------------------------------
-echo "----- eval -----"
-python src/eval/evaluate.py --model "$MODEL" --data data_out/eval.jsonl --label baseline
+# Match eval's generation cap to the training completion budget so eval isn't
+# truncated shorter than what the model was trained to produce.
+EVAL_MAX_NEW="${MAX_COMPLETION_LEN:-512}"
+echo "----- eval (max_new_tokens=$EVAL_MAX_NEW) -----"
+python src/eval/evaluate.py --model "$MODEL" --data data_out/eval.jsonl --label baseline \
+    --max_new_tokens "$EVAL_MAX_NEW"
 python src/eval/evaluate.py --model "$MODEL" --adapter runs/grpo-qwen15b \
-    --data data_out/eval.jsonl --label grpo
+    --data data_out/eval.jsonl --label grpo --max_new_tokens "$EVAL_MAX_NEW"
 python src/eval/make_chart.py results/baseline.json results/grpo.json || true
 python src/eval/results_to_md.py results/baseline.json results/grpo.json > results/table.md || true
 cat results/table.md || true

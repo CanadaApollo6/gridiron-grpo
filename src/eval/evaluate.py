@@ -73,12 +73,16 @@ def main():
     ap.add_argument("--data", default="data_out/eval.jsonl")
     ap.add_argument("--label", required=True)
     ap.add_argument("--out", default="results")
+    ap.add_argument("--max_new_tokens", type=int, default=512,
+                    help="cap on generated tokens at eval; match the training "
+                         "--max_completion_len so eval isn't truncated short.")
     args = ap.parse_args()
 
     rows = [json.loads(l) for l in open(args.data)]
     model, tok = load_model(args.model, args.adapter)
 
-    completions = generate_batch(model, tok, [r["prompt"] for r in rows])
+    completions = generate_batch(model, tok, [r["prompt"] for r in rows],
+                                 max_new_tokens=args.max_new_tokens)
 
     by_kind_hits = defaultdict(int)
     by_kind_tot = defaultdict(int)
