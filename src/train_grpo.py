@@ -47,6 +47,11 @@ def parse_args():
     ap.add_argument("--vllm_mode", default="colocate",
                     help="colocate = vLLM shares the training GPU (single-GPU runs); "
                          "server = expects a separate `trl vllm-serve` process")
+    ap.add_argument("--vllm_gpu_mem_util", type=float, default=0.30,
+                    help="fraction of GPU memory vLLM reserves for KV cache in "
+                         "colocate mode. Lower it if training OOMs; raise it if "
+                         "rollouts are KV-starved. On a busy/small GPU this is "
+                         "often what needs tuning.")
     return ap.parse_args()
 
 
@@ -105,7 +110,7 @@ def main():
         save_steps=200,
         use_vllm=not args.no_vllm,           # vLLM-accelerated rollouts
         vllm_mode=args.vllm_mode,            # colocate: vLLM shares the single GPU
-        vllm_gpu_memory_utilization=0.30,
+        vllm_gpu_memory_utilization=args.vllm_gpu_mem_util,
         report_to="none",                    # swap to "wandb" to log curves
     )
     import dataclasses
