@@ -33,6 +33,10 @@ def load_model(model_name: str, adapter: str | None):
     tok = AutoTokenizer.from_pretrained(model_name)
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
+    # Decoder-only models MUST be left-padded for batched generation: with the
+    # default right-padding, pad tokens sit between the prompt and the generation
+    # start, corrupting output for every sequence shorter than the batch max.
+    tok.padding_side = "left"
     model = AutoModelForCausalLM.from_pretrained(
         model_name, torch_dtype=torch.bfloat16,
         attn_implementation=pick_attn_impl(), device_map="auto",
