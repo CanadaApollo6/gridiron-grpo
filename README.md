@@ -130,7 +130,9 @@ Vendor-neutral by design — rent an H100 wherever you like:
 
 ### Run it on Hugging Face Jobs
 
-If you don't want to manage a box, [HF Jobs](https://huggingface.co/docs/hub/jobs) runs the whole pipeline on rented hardware billed by the minute. `scripts/hf_job.sh` is self-contained — it clones this repo inside the container, installs deps, builds data, runs the 20-step smoke test, trains, evaluates, charts, and **pushes the LoRA adapter + results to a Hub repo** (the container's disk is wiped when the Job ends, so this upload is the point).
+If you don't want to manage a box, [HF Jobs](https://huggingface.co/docs/hub/jobs) runs the whole pipeline on rented hardware billed by the minute. The Job command git-clones this repo into the container and runs `scripts/hf_job.sh`, which installs deps, builds data, runs the 20-step smoke test, trains, evaluates, charts, and **pushes the LoRA adapter + results to a Hub repo** (the container's disk is wiped when the Job ends, so this upload is the point).
+
+The command below is deliberately one line with no `\` continuations, no `$(...)`, and no nested quotes, so it pastes cleanly into **PowerShell or bash** (the `apt-get`/`git clone` run inside the Linux container):
 
 ```bash
 # one-time: a HF account with a positive credit balance (Pro unlocks Jobs;
@@ -138,13 +140,10 @@ If you don't want to manage a box, [HF Jobs](https://huggingface.co/docs/hub/job
 uvx --from huggingface_hub hf auth login
 
 # launch on a single A100 80GB ($2.50/hr); --secrets HF_TOKEN lets the job push results
-uvx --from huggingface_hub hf jobs run \
-    --flavor a100-large --timeout 4h --secrets HF_TOKEN \
-    pytorch/pytorch:2.6.0-cuda12.4-cudnn9-devel \
-    bash -c "$(curl -fsSL https://raw.githubusercontent.com/CanadaApollo6/gridiron-grpo/main/scripts/hf_job.sh)"
+uvx --from huggingface_hub hf jobs run --flavor a100-large --timeout 4h --secrets HF_TOKEN pytorch/pytorch:2.6.0-cuda12.4-cudnn9-devel bash -c "apt-get update -qq && apt-get install -y -qq git && git clone --depth 1 https://github.com/CanadaApollo6/gridiron-grpo.git /tmp/gg && bash /tmp/gg/scripts/hf_job.sh"
 ```
 
-Tune via `-e MAX_STEPS=...`, `-e MODEL=...`, `-e REPO_NAME=...`, or `-e NO_VLLM=1`. Cheaper hardware: `--flavor l40sx1` (48 GB, $1.80/hr). Watch it with `hf jobs logs <id>`; pull the result with `hf download <namespace>/gridiron-grpo-qwen15b --local-dir ./out`.
+Tune via `-e MAX_STEPS=...`, `-e MODEL=...`, `-e REPO_NAME=...`, or `-e NO_VLLM=1` (placed before the image). Cheaper hardware: `--flavor l40sx1` (48 GB, $1.80/hr). Watch it with `hf jobs logs <id>`; pull the result with `hf download <namespace>/gridiron-grpo-qwen15b --local-dir ./out`.
 
 **Validate the Job env for a few cents first.** Add `-e SMOKE_ONLY=1` (and drop `--secrets HF_TOKEN`) to run only the data build + 20-step smoke on the real hardware — a ~5-minute, few-cents confirmation that the pinned stack and TRL GRPO API are happy before you commit to the full 4-hour run.
 

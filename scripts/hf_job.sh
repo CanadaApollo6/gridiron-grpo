@@ -2,17 +2,14 @@
 # =============================================================================
 # gridiron-grpo — full pipeline for a Hugging Face Job (ephemeral GPU container).
 #
-# This is what runs *inside* the rented GPU container. It is self-contained:
-# it clones the repo, installs deps, builds data, runs a 20-step smoke test,
-# trains for real, evaluates base vs. tuned, charts the result, and — crucially —
-# UPLOADS the LoRA adapter + results to the Hub, because the container's disk is
-# wiped when the Job ends.
+# This is what runs *inside* the rented GPU container. It installs deps, builds
+# data, runs a 20-step smoke test, trains for real, evaluates base vs. tuned,
+# charts the result, and — crucially — UPLOADS the LoRA adapter + results to the
+# Hub, because the container's disk is wiped when the Job ends.
 #
-# Submit it from your laptop with (see README "Run it on Hugging Face Jobs"):
-#   uvx --from huggingface_hub hf jobs run --flavor a100-large --timeout 4h \
-#       --secrets HF_TOKEN \
-#       pytorch/pytorch:2.6.0-cuda12.4-cudnn9-devel \
-#       bash -c "$(curl -fsSL https://raw.githubusercontent.com/CanadaApollo6/gridiron-grpo/main/scripts/hf_job.sh)"
+# It expects to be run from within a checkout of this repo. The Job command does
+# the clone (works the same in PowerShell or bash — no shell-specific syntax):
+#   uvx --from huggingface_hub hf jobs run --flavor a100-large --timeout 4h --secrets HF_TOKEN pytorch/pytorch:2.6.0-cuda12.4-cudnn9-devel bash -c "apt-get update -qq && apt-get install -y -qq git && git clone --depth 1 https://github.com/CanadaApollo6/gridiron-grpo.git /tmp/gg && bash /tmp/gg/scripts/hf_job.sh"
 #
 # Tunable via -e on the submit command (all optional):
 #   MODEL        base model            (default Qwen/Qwen2.5-1.5B-Instruct)
@@ -46,11 +43,11 @@ echo "   vllm       = $([ -n "$NO_VLLM_FLAG" ] && echo off || echo on)"
 echo "=================================================================="
 nvidia-smi || echo "(no nvidia-smi — are you on a GPU flavor?)"
 
-# --- 1. Code -----------------------------------------------------------------
-cd /tmp
-rm -rf gridiron-grpo
-git clone --depth 1 https://github.com/CanadaApollo6/gridiron-grpo.git
-cd gridiron-grpo
+# --- 1. Locate the repo ------------------------------------------------------
+# The Job command git-clones the repo and runs this file from it; cd to the repo
+# root regardless of where we were invoked from.
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+echo "repo root: $(pwd)"
 
 # --- 2. Deps -----------------------------------------------------------------
 # The base image already has torch 2.6.0 + CUDA 12.4 (matches the pins). We add
