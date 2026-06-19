@@ -34,6 +34,17 @@ SMOKE_ONLY="${SMOKE_ONLY:-0}"
 NO_VLLM_FLAG=""
 [ "${NO_VLLM:-0}" = "1" ] && NO_VLLM_FLAG="--no_vllm"
 
+# Optional hyperparameter overrides (pass with -e on the submit command). Empty
+# = use train_grpo.py defaults. These let you iterate without editing code, e.g.
+#   -e MAX_COMPLETION_LEN=1024 -e LR=2e-6
+EXTRA_TRAIN_ARGS=""
+[ -n "${LR:-}" ]                 && EXTRA_TRAIN_ARGS="$EXTRA_TRAIN_ARGS --lr $LR"
+[ -n "${BETA:-}" ]               && EXTRA_TRAIN_ARGS="$EXTRA_TRAIN_ARGS --beta $BETA"
+[ -n "${NUM_GEN:-}" ]            && EXTRA_TRAIN_ARGS="$EXTRA_TRAIN_ARGS --num_generations $NUM_GEN"
+[ -n "${MAX_COMPLETION_LEN:-}" ] && EXTRA_TRAIN_ARGS="$EXTRA_TRAIN_ARGS --max_completion_len $MAX_COMPLETION_LEN"
+[ -n "${MAX_PROMPT_LEN:-}" ]     && EXTRA_TRAIN_ARGS="$EXTRA_TRAIN_ARGS --max_prompt_len $MAX_PROMPT_LEN"
+[ -n "${VLLM_GPU_MEM_UTIL:-}" ]  && EXTRA_TRAIN_ARGS="$EXTRA_TRAIN_ARGS --vllm_gpu_mem_util $VLLM_GPU_MEM_UTIL"
+
 echo "=================================================================="
 echo " gridiron-grpo HF Job"
 echo "   model      = $MODEL"
@@ -75,7 +86,7 @@ python src/data/build_dataset.py --n_train "$N_TRAIN" --n_eval "$N_EVAL" --seed 
 # `accelerate launch --num_processes 1` (simple_launcher) do not -> KeyError 'RANK'.
 echo "----- 20-step smoke test -----"
 torchrun --nproc_per_node 1 src/train_grpo.py --model "$MODEL" \
-    --data data_out/train.jsonl --out runs/smoke --max_steps 20 $NO_VLLM_FLAG
+    --data data_out/train.jsonl --out runs/smoke --max_steps 20 $NO_VLLM_FLAG $EXTRA_TRAIN_ARGS
 
 if [ "$SMOKE_ONLY" = "1" ]; then
   echo "SMOKE_ONLY=1 -> smoke passed; stopping before the real run. No upload."
@@ -86,7 +97,7 @@ fi
 echo "----- real run: $MAX_STEPS steps -----"
 torchrun --nproc_per_node 1 src/train_grpo.py --model "$MODEL" \
     --data data_out/train.jsonl --out runs/grpo-qwen15b \
-    --max_steps "$MAX_STEPS" $NO_VLLM_FLAG
+    --max_steps "$MAX_STEPS" $NO_VLLM_FLAG $EXTRA_TRAIN_ARGS
 
 # --- 6. Eval base vs. tuned + chart -----------------------------------------
 echo "----- eval -----"
