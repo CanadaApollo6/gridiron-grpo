@@ -73,9 +73,11 @@ fi
 python src/data/build_dataset.py --n_train "$N_TRAIN" --n_eval "$N_EVAL" --seed 7 --out data_out
 
 # --- 4. Smoke test (confirms TRL's GRPO API on THIS install before the long run)
+# Launch via accelerate: vLLM colocate needs the torch-distributed env vars
+# (RANK/WORLD_SIZE/...) that a launcher sets; plain python -> KeyError: 'RANK'.
 echo "----- 20-step smoke test -----"
-python src/train_grpo.py --model "$MODEL" --data data_out/train.jsonl \
-    --out runs/smoke --max_steps 20 $NO_VLLM_FLAG
+accelerate launch --num_processes 1 src/train_grpo.py --model "$MODEL" \
+    --data data_out/train.jsonl --out runs/smoke --max_steps 20 $NO_VLLM_FLAG
 
 if [ "$SMOKE_ONLY" = "1" ]; then
   echo "SMOKE_ONLY=1 -> smoke passed; stopping before the real run. No upload."
@@ -84,8 +86,9 @@ fi
 
 # --- 5. Real training --------------------------------------------------------
 echo "----- real run: $MAX_STEPS steps -----"
-python src/train_grpo.py --model "$MODEL" --data data_out/train.jsonl \
-    --out runs/grpo-qwen15b --max_steps "$MAX_STEPS" $NO_VLLM_FLAG
+accelerate launch --num_processes 1 src/train_grpo.py --model "$MODEL" \
+    --data data_out/train.jsonl --out runs/grpo-qwen15b \
+    --max_steps "$MAX_STEPS" $NO_VLLM_FLAG
 
 # --- 6. Eval base vs. tuned + chart -----------------------------------------
 echo "----- eval -----"
