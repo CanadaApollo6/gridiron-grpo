@@ -20,6 +20,10 @@
 #   NO_VLLM      set to 1 to disable vLLM rollouts (slower but bulletproof)
 #   SMOKE_ONLY   set to 1 to run ONLY data build + 20-step smoke, no real train
 #                or upload -- a few-cents validation of the real environment.
+#   Hyperparams: LR, BETA, NUM_GEN, MAX_COMPLETION_LEN, MAX_PROMPT_LEN, SEED,
+#                VLLM_GPU_MEM_UTIL.
+#   Objective:   LOSS_TYPE (grpo|bnpo|dr_grpo), EPSILON_HIGH, NO_SCALE_REWARDS=1,
+#                MASK_TRUNCATED=1, NO_FORMAT_REWARD=1  (the research axes).
 # Requires the HF_TOKEN secret (pass --secrets HF_TOKEN on submit), except when
 # SMOKE_ONLY=1 (no upload, so no token needed).
 # =============================================================================
@@ -44,6 +48,13 @@ EXTRA_TRAIN_ARGS=""
 [ -n "${MAX_COMPLETION_LEN:-}" ] && EXTRA_TRAIN_ARGS="$EXTRA_TRAIN_ARGS --max_completion_len $MAX_COMPLETION_LEN"
 [ -n "${MAX_PROMPT_LEN:-}" ]     && EXTRA_TRAIN_ARGS="$EXTRA_TRAIN_ARGS --max_prompt_len $MAX_PROMPT_LEN"
 [ -n "${VLLM_GPU_MEM_UTIL:-}" ]  && EXTRA_TRAIN_ARGS="$EXTRA_TRAIN_ARGS --vllm_gpu_mem_util $VLLM_GPU_MEM_UTIL"
+[ -n "${SEED:-}" ]               && EXTRA_TRAIN_ARGS="$EXTRA_TRAIN_ARGS --seed $SEED"
+# GRPO objective variants (research axis)
+[ -n "${LOSS_TYPE:-}" ]          && EXTRA_TRAIN_ARGS="$EXTRA_TRAIN_ARGS --loss_type $LOSS_TYPE"
+[ -n "${EPSILON_HIGH:-}" ]       && EXTRA_TRAIN_ARGS="$EXTRA_TRAIN_ARGS --epsilon_high $EPSILON_HIGH"
+[ "${NO_SCALE_REWARDS:-0}" = "1" ]  && EXTRA_TRAIN_ARGS="$EXTRA_TRAIN_ARGS --no_scale_rewards"
+[ "${MASK_TRUNCATED:-0}" = "1" ]    && EXTRA_TRAIN_ARGS="$EXTRA_TRAIN_ARGS --mask_truncated_completions"
+[ "${NO_FORMAT_REWARD:-0}" = "1" ]  && EXTRA_TRAIN_ARGS="$EXTRA_TRAIN_ARGS --no_format_reward"
 
 echo "=================================================================="
 echo " gridiron-grpo HF Job"

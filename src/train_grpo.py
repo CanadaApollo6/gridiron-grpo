@@ -52,6 +52,26 @@ def parse_args():
                          "colocate mode. Lower it if training OOMs; raise it if "
                          "rollouts are KV-starved. On a busy/small GPU this is "
                          "often what needs tuning.")
+    ap.add_argument("--seed", type=int, default=7,
+                    help="training seed (set per run for multi-seed rigor)")
+    # --- GRPO objective variants (the "known fixes" research axis) ----------
+    ap.add_argument("--loss_type", default="bnpo",
+                    choices=["grpo", "bnpo", "dr_grpo"],
+                    help="bnpo = TRL default; grpo = original length-normalized "
+                         "(has length bias); dr_grpo = length-bias-free (Dr. GRPO)")
+    ap.add_argument("--no_scale_rewards", action="store_true",
+                    help="disable std reward scaling (the other half of Dr. GRPO; "
+                         "removes the difficulty bias)")
+    ap.add_argument("--mask_truncated_completions", action="store_true",
+                    help="don't penalize completions that hit the length cap "
+                         "(DAPO; reduces noise from non-terminating rollouts)")
+    ap.add_argument("--epsilon_high", type=float, default=None,
+                    help="asymmetric clip upper bound (DAPO recommends 0.28)")
+    ap.add_argument("--no_format_reward", action="store_true",
+                    help="train on the correctness reward only (reward ablation)")
+    ap.add_argument("--lora_target", default="all-linear",
+                    help="LoRA target modules; 'all-linear' is portable across "
+                         "model families (avoids per-architecture module names)")
     return ap.parse_args()
 
 
@@ -81,11 +101,13 @@ def main():
     # (ground_truth, answer_type) that TRL forwards to the reward functions.
     dataset = load_dataset("json", data_files=args.data, split="train")
 
+    # "all-linear" adapts every linear layer regardless of how a given
+    # architecture names them (Qwen/Llama/SmolLM/OLMo-2 differ), so the LoRA
+    # recipe is identical across families -- important for a fair comparison.
+    target = "all-linear" if args.lora_target == "all-linear" else args.lora_target.split(",")
     lora = LoraConfig(
         r=16, lora_alpha=32, lora_dropout=0.05, bias="none",
-        task_type="CAUSAL_LM",
-        target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
-                        "gate_proj", "up_proj", "down_proj"],
+        task_type="CAUSAL_LM", target_modules=target,
     )
 
     # The GRPOConfig field names have moved across TRL releases (this is the #1
@@ -104,6 +126,12 @@ def main():
         max_completion_length=args.max_completion_len,
         max_steps=args.max_steps,
         temperature=0.9,
+        seed=args.seed,
+        # --- GRPO objective variant (research axis) -------------------------
+        loss_type=args.loss_type,
+        scale_rewards=not args.no_scale_rewards,
+        mask_truncated_completions=args.mask_truncated_completions,
+        epsilon_high=args.epsilon_high,
         bf16=True,
         gradient_checkpointing=True,
         # torchrun wraps the model in DDP (even for 1 GPU). DDP is incompatible
@@ -130,10 +158,16 @@ def main():
               f"-- dropping them (check the smoke run still trains as intended).")
     config = GRPOConfig(**{k: v for k, v in desired.items() if k in accepted})
 
+    reward_funcs = [correctness_reward] if args.no_format_reward \
+        else [correctness_reward, format_reward]
+    print(f"reward_funcs: {[f.__name__ for f in reward_funcs]} | "
+          f"loss_type={args.loss_type} scale_rewards={not args.no_scale_rewards} "
+          f"mask_truncated={args.mask_truncated_completions} seed={args.seed}")
+
     trainer = GRPOTrainer(
         model=model,
         processing_class=tok,
-        reward_funcs=[correctness_reward, format_reward],
+        reward_funcs=reward_funcs,
         args=config,
         train_dataset=dataset,
         peft_config=lora,
