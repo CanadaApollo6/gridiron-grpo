@@ -8,7 +8,7 @@
 # GPU works there), or run it on Hugging Face Jobs (see README).
 torch==2.6.0
 transformers==4.51.3
-trl==0.17.0
+trl==0.19.0             # >=0.18 needed for single-GPU vLLM "colocate" mode
 peft==0.15.2
 datasets==3.5.1
 accelerate==1.6.0

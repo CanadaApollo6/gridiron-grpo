@@ -42,14 +42,22 @@ $PY -c "from trl import GRPOConfig, GRPOTrainer; print('TRL GRPO import OK')"
 echo "=== building a tiny dataset ==="
 $PY src/data/build_dataset.py --n_train 64 --n_eval 32 --seed 7 --out data_out
 
-echo "=== 5-step GRPO smoke (Qwen2.5-0.5B, no vLLM to keep VRAM low) ==="
-# --no_vllm keeps the smoke inside 10 GB reliably. Drop the flag to exercise the
-# real vLLM rollout path (works on the 3080 for 0.5B, but tighter on VRAM).
+# By default the smoke runs WITHOUT vLLM to stay comfortably inside 10 GB.
+# Set USE_VLLM=1 to validate the *exact* path the A100 Job uses (vLLM colocate,
+# in-process) on your 3080 -- this is the most faithful free pre-flight. It fits
+# 0.5B on 10 GB, but is tighter on VRAM.
+VLLM_FLAG="--no_vllm"
+if [ "${USE_VLLM:-0}" = "1" ]; then
+    VLLM_FLAG="--vllm_mode colocate"
+    echo "=== 5-step GRPO smoke (Qwen2.5-0.5B, vLLM colocate) ==="
+else
+    echo "=== 5-step GRPO smoke (Qwen2.5-0.5B, no vLLM) ==="
+fi
 $PY src/train_grpo.py \
     --model Qwen/Qwen2.5-0.5B-Instruct \
     --data data_out/train.jsonl \
     --out runs/smoke-local \
-    --no_vllm \
+    $VLLM_FLAG \
     --num_generations 2 \
     --per_device_bs 2 \
     --grad_accum 1 \

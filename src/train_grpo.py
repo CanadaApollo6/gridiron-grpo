@@ -64,6 +64,13 @@ def main():
         torch_dtype=torch.bfloat16,
         attn_implementation=attn_impl,
     )
+    # With LoRA + gradient checkpointing, the checkpointed blocks only build a
+    # backward graph if at least one of their inputs requires grad. Without this,
+    # the input embeddings are detached, no gradient reaches the LoRA params, and
+    # training silently does nothing (you'd see "None of the inputs have
+    # requires_grad=True. Gradients will be None"). This registers the hook that
+    # makes the embedding output require grad. Harmless if checkpointing is off.
+    model.enable_input_require_grads()
 
     # Dataset already has a chat-format `prompt` column + the reward columns
     # (ground_truth, answer_type) that TRL forwards to the reward functions.
