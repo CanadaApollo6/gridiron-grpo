@@ -106,6 +106,11 @@ def main():
         temperature=0.9,
         bf16=True,
         gradient_checkpointing=True,
+        # torchrun wraps the model in DDP (even for 1 GPU). DDP is incompatible
+        # with the *reentrant* gradient-checkpointing implementation -- it runs
+        # backward twice and double-marks the LoRA params ("marked as ready
+        # twice"). The non-reentrant implementation is DDP-safe.
+        gradient_checkpointing_kwargs={"use_reentrant": False},
         logging_steps=10,
         save_steps=200,
         use_vllm=not args.no_vllm,           # vLLM-accelerated rollouts
