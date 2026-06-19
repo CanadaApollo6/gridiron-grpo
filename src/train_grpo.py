@@ -111,6 +111,10 @@ def main():
         use_vllm=not args.no_vllm,           # vLLM-accelerated rollouts
         vllm_mode=args.vllm_mode,            # colocate: vLLM shares the single GPU
         vllm_gpu_memory_utilization=args.vllm_gpu_mem_util,
+        # TRL 0.19.0's colocate path does `generation_kwargs.update(self.args.
+        # generation_kwargs)`, which crashes when this defaults to None. Pass an
+        # empty dict so the update is a harmless no-op.
+        generation_kwargs={},
         report_to="none",                    # swap to "wandb" to log curves
     )
     import dataclasses
