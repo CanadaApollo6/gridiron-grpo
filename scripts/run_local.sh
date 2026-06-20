@@ -14,7 +14,7 @@
 #   bash scripts/run_local.sh smoke                                # 0.5B GRPO smoke (needs WSL+vLLM)
 #
 # VRAM/scope knobs (defaults tuned for ~10GB):
-#   N_EVAL=800 LIMIT=120 N_SAMPLES=64 GEN_BATCH=16 BS=8 MAXNEW=1024 PY=python3
+#   N_EVAL=800 LIMIT=120 N_SAMPLES=64 GEN_BATCH=16 BS=8 MAXNEW=1024 PASSK_MAXNEW=512 PY=python3
 # Examples:
 #   bash scripts/run_local.sh passk HuggingFaceTB/SmolLM2-1.7B-Instruct base_smollm2
 #   GEN_BATCH=8 LIMIT=60 bash scripts/run_local.sh passk Qwen/Qwen2.5-1.5B-Instruct base_qwen
@@ -44,7 +44,7 @@ case "$cmd" in
     A=""; [ -n "$ADAPTER" ] && A="--adapter $ADAPTER"
     echo "[passk] $MODEL  n_samples=$N_SAMPLES gen_batch=$GEN_BATCH limit=$LIMIT"
     $PY src/eval/pass_at_k.py --model "$MODEL" $A --data data_out/eval.jsonl --label "$LABEL" \
-        --n_samples "$N_SAMPLES" --gen_batch "$GEN_BATCH" --max_new_tokens "$MAXNEW" --limit "$LIMIT" ;;
+        --n_samples "$N_SAMPLES" --gen_batch "$GEN_BATCH" --max_new_tokens "${PASSK_MAXNEW:-512}" --limit "$LIMIT" ;;
   eval)
     ensure_data
     MODEL="${1:?usage: eval <model> [adapter] [label]}"; ADAPTER="${2:-}"; LABEL="${3:-eval}"
