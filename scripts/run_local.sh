@@ -14,7 +14,7 @@
 #   bash scripts/run_local.sh smoke                                # 0.5B GRPO smoke (needs WSL+vLLM)
 #
 # VRAM/scope knobs (defaults tuned for ~10GB):
-#   N_EVAL=800 LIMIT=120 N_SAMPLES=64 GEN_BATCH=16 BS=8 MAXNEW=1024 PASSK_MAXNEW=512 PY=python3
+#   N_EVAL=800 LIMIT=120 N_SAMPLES=64 GEN_BATCH=8 BS=8 MAXNEW=1024 PASSK_MAXNEW=512 PY=python3
 # Examples:
 #   bash scripts/run_local.sh passk HuggingFaceTB/SmolLM2-1.7B-Instruct base_smollm2
 #   GEN_BATCH=8 LIMIT=60 bash scripts/run_local.sh passk Qwen/Qwen2.5-1.5B-Instruct base_qwen
@@ -22,16 +22,20 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 export ATTN_IMPL="${ATTN_IMPL:-sdpa}"   # no flash-attn needed locally
+export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"  # reduce 10GB fragmentation
 PY="${PY:-python3}"
 
 N_TRAIN="${N_TRAIN:-8000}"; N_EVAL="${N_EVAL:-800}"; LIMIT="${LIMIT:-120}"
-N_SAMPLES="${N_SAMPLES:-64}"; GEN_BATCH="${GEN_BATCH:-16}"; BS="${BS:-8}"; MAXNEW="${MAXNEW:-1024}"
+N_SAMPLES="${N_SAMPLES:-64}"; GEN_BATCH="${GEN_BATCH:-8}"; BS="${BS:-8}"; MAXNEW="${MAXNEW:-1024}"
 
 ensure_data() {
-  [ -f data_out/eval.jsonl ] || {
-    echo "[data] building eval set (n=$N_EVAL, seed 7)"
+  # rebuild if missing OR smaller than requested (e.g. a 32-row smoke_local.sh leftover)
+  if [ ! -f data_out/eval.jsonl ] || [ "$(wc -l < data_out/eval.jsonl)" -lt "$N_EVAL" ]; then
+    echo "[data] (re)building eval set (n=$N_EVAL, seed 7)"
     $PY src/data/build_dataset.py --n_train 1000 --n_eval "$N_EVAL" --seed 7 --out data_out
-  }
+  else
+    echo "[data] using existing data_out/eval.jsonl ($(wc -l < data_out/eval.jsonl) rows)"
+  fi
 }
 
 cmd="${1:-help}"; shift || true
