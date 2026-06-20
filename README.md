@@ -26,15 +26,15 @@ By reading the code and running it once, you'll come away understanding:
 
 ![base vs. GRPO-tuned](results/before_after.png)
 
-| Task            | What it tests                            |  Base |  GRPO | Δ (pp) |
-| --------------- | ---------------------------------------- | ----: | ----: | -----: |
-| **Overall**     | —                                        | `__%` | `__%` |  `+__` |
-| scrimmage_total | single-player rush + rec sum             | `__%` | `__%` |  `+__` |
-| team_points     | reconstruct points from the scoring line | `__%` | `__%` |  `+__` |
-| total_tds       | sum touchdowns across players            | `__%` | `__%` |  `+__` |
-| most_scrimmage  | argmax over the table                    | `__%` | `__%` |  `+__` |
-| hundred_yd_rec  | set membership (≥100 rec yds)            | `__%` | `__%` |  `+__` |
-| td_or_fg        | rule-based decision                      | `__%` | `__%` |  `+__` |
+| Task            | What it tests                          |  Base |  GRPO | Δ (pp) |
+| --------------- | -------------------------------------- | ----: | ----: | -----: |
+| **Overall**     | —                                      | `__%` | `__%` |  `+__` |
+| scrimmage_total | single-player rush + rec sum           | `__%` | `__%` |  `+__` |
+| team_points     | players' TDs (x6) + the FG/XP/2pt line | `__%` | `__%` |  `+__` |
+| total_tds       | sum touchdowns across players          | `__%` | `__%` |  `+__` |
+| most_scrimmage  | argmax over the table                  | `__%` | `__%` |  `+__` |
+| hundred_yd_rec  | set membership (≥100 rec yds)          | `__%` | `__%` |  `+__` |
+| td_or_fg        | rule-based decision                    | `__%` | `__%` |  `+__` |
 
 **Trained on:** `Qwen/Qwen2.5-1.5B-Instruct` · GRPO + LoRA (r=16) · `__` steps · 1× H100 · ~`__h` · **~$`__`**
 
@@ -160,6 +160,7 @@ I'd rather you learn these from a paragraph than from a wasted run:
 - **TRL's GRPO API moves between releases.** Pin the versions in `requirements.txt` and let the 20-step smoke test confirm the `GRPOConfig` / reward-function argument names on _your_ install before the real run.
 - **GRPO is rollout-heavy.** Wall-clock is dominated by generation, not the gradient step. This is why vLLM matters and why "RL is slow" is usually really "generation is slow."
 - **Small models will game the format reward.** If `<think>/<answer>` adherence shoots to ~100% while _correctness_ stays flat, the model learned the shape without learning to be right. Watch the per-task breakdown, not the average, and lower the format bonus if it happens.
+- **Read deltas against the floor, with error bars.** Two tasks are label-imbalanced; eval reports a naive best-constant floor, Wilson 95% CIs, and a paired McNemar test (`src/eval/compare.py`) so a per-task Δ isn't mistaken for learning when it's noise or majority-class collapse.
 - **The knobs that matter most** are LoRA rank, KL `beta`, and group size. Change one at a time.
 
 ---
@@ -168,9 +169,10 @@ I'd rather you learn these from a paragraph than from a wasted run:
 
 Built by **Riel St. Amand** as a hands-on companion to talks and writing on agentic AI and small-model reasoning. The accompanying walkthrough is in [`BLOG_OUTLINE.md`](BLOG_OUTLINE.md).
 
-This repo grew past the original tutorial into a controlled research study. Two docs track that:
+This repo grew past the original tutorial into a controlled research study. Three docs track that:
 
 - [`JOURNEY.md`](JOURNEY.md) — the full narrative of how we got here: the bug gauntlet, the flat results, the diagnosis (KL drift), the literature check, and the pivot.
+- [`REVIEW.md`](REVIEW.md) — an outside methodology audit: the task-design confounds, the statistics the per-task claims need, and the hardening pass that followed.
 - [`EXPERIMENTS.md`](EXPERIMENTS.md) — the experimental design for _"When does RLVR help on structured/tabular verifiable reasoning, across model families?"_
 
 **License:** MIT. Football data is synthetic — no real NFL data ships in this repo.

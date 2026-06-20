@@ -7,14 +7,13 @@ to spec against TRL's GRPOTrainer; the GRPO API has moved across releases, so:
   3. then launch the real run.
 
 Example:
-  python src/train_grpo.py \
-    --model Qwen/Qwen2.5-1.5B-Instruct \
-    --data data_out/train.jsonl \
-    --out runs/grpo-qwen15b \
-    --max_steps 1200
+  python src/train_grpo.py --model Qwen/Qwen2.5-1.5B-Instruct \
+    --data data_out/train.jsonl --out runs/grpo-qwen15b --max_steps 1200
 """
 
 import argparse
+import dataclasses
+import json
 import sys
 from pathlib import Path
 
@@ -26,7 +25,9 @@ from trl import GRPOConfig, GRPOTrainer
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from model_utils import pick_attn_impl  # noqa: E402
-from rewards.verifiers import correctness_reward, format_reward  # noqa: E402
+from rewards.verifiers import (  # noqa: E402
+    correctness_reward, correctness_reward_graded, format_reward,
+)
 
 
 def parse_args():
@@ -38,9 +39,17 @@ def parse_args():
     ap.add_argument("--num_generations", type=int, default=8,
                     help="rollouts per prompt (the 'group' in GRPO)")
     ap.add_argument("--lr", type=float, default=1e-6)
+    ap.add_argument("--lr_scheduler_type", default="cosine",
+                    help="HF LR schedule. 'cosine'/'linear' decay toward 0; use "
+                         "'constant_with_warmup' for a fair does-it-learn probe so "
+                         "the back half of training still updates (REVIEW.md).")
+    ap.add_argument("--warmup_ratio", type=float, default=0.03,
+                    help="fraction of steps spent warming the LR up from 0")
     ap.add_argument("--beta", type=float, default=0.04, help="KL coefficient")
     ap.add_argument("--max_prompt_len", type=int, default=640)
-    ap.add_argument("--max_completion_len", type=int, default=512)
+    ap.add_argument("--max_completion_len", type=int, default=1024,
+                    help="completion token budget; default matches the study design "
+                         "and the eval cap so train and eval agree.")
     ap.add_argument("--per_device_bs", type=int, default=8)
     ap.add_argument("--grad_accum", type=int, default=4)
     ap.add_argument("--no_vllm", action="store_true")
@@ -49,9 +58,8 @@ def parse_args():
                          "server = expects a separate `trl vllm-serve` process")
     ap.add_argument("--vllm_gpu_mem_util", type=float, default=0.30,
                     help="fraction of GPU memory vLLM reserves for KV cache in "
-                         "colocate mode. Lower it if training OOMs; raise it if "
-                         "rollouts are KV-starved. On a busy/small GPU this is "
-                         "often what needs tuning.")
+                         "colocate mode. Lower if training OOMs; raise if rollouts "
+                         "are KV-starved.")
     ap.add_argument("--seed", type=int, default=7,
                     help="training seed (set per run for multi-seed rigor)")
     # --- GRPO objective variants (the "known fixes" research axis) ----------
@@ -63,10 +71,16 @@ def parse_args():
                     help="disable std reward scaling (the other half of Dr. GRPO; "
                          "removes the difficulty bias)")
     ap.add_argument("--mask_truncated_completions", action="store_true",
-                    help="don't penalize completions that hit the length cap "
-                         "(DAPO; reduces noise from non-terminating rollouts)")
+                    help="don't penalize completions that hit the length cap (DAPO)")
     ap.add_argument("--epsilon_high", type=float, default=None,
                     help="asymmetric clip upper bound (DAPO recommends 0.28)")
+    ap.add_argument("--dynamic_sampling", action="store_true",
+                    help="DAPO dynamic sampling: drop zero-advantage groups so every "
+                         "step carries signal. Forward-compatible: applied only if the "
+                         "installed TRL's GRPOConfig supports it (reported at startup).")
+    ap.add_argument("--graded_numeric", action="store_true",
+                    help="use partial-credit numeric reward in training to densify the "
+                         "sparse 0/1 signal (eval stays strict). Reward ablation arm.")
     ap.add_argument("--no_format_reward", action="store_true",
                     help="train on the correctness reward only (reward ablation)")
     ap.add_argument("--lora_target", default="all-linear",
@@ -85,39 +99,30 @@ def main():
     attn_impl = pick_attn_impl()
     print(f"using attn_implementation={attn_impl}")
     model = AutoModelForCausalLM.from_pretrained(
-        args.model,
-        torch_dtype=torch.bfloat16,
-        attn_implementation=attn_impl,
+        args.model, torch_dtype=torch.bfloat16, attn_implementation=attn_impl,
     )
     # With LoRA + gradient checkpointing, the checkpointed blocks only build a
-    # backward graph if at least one of their inputs requires grad. Without this,
-    # the input embeddings are detached, no gradient reaches the LoRA params, and
-    # training silently does nothing (you'd see "None of the inputs have
-    # requires_grad=True. Gradients will be None"). This registers the hook that
-    # makes the embedding output require grad. Harmless if checkpointing is off.
+    # backward graph if at least one input requires grad. Without this the input
+    # embeddings are detached, no gradient reaches the LoRA params, and training
+    # silently does nothing. Harmless if checkpointing is off.
     model.enable_input_require_grads()
 
-    # Dataset already has a chat-format `prompt` column + the reward columns
-    # (ground_truth, answer_type) that TRL forwards to the reward functions.
     dataset = load_dataset("json", data_files=args.data, split="train")
 
-    # "all-linear" adapts every linear layer regardless of how a given
-    # architecture names them (Qwen/Llama/SmolLM/OLMo-2 differ), so the LoRA
-    # recipe is identical across families -- important for a fair comparison.
     target = "all-linear" if args.lora_target == "all-linear" else args.lora_target.split(",")
     lora = LoraConfig(
         r=16, lora_alpha=32, lora_dropout=0.05, bias="none",
         task_type="CAUSAL_LM", target_modules=target,
     )
 
-    # The GRPOConfig field names have moved across TRL releases (this is the #1
-    # gotcha called out in the README). Rather than pass a fixed kwargs blob that
-    # might crash on a renamed/removed field, we keep the *desired* config here and
-    # filter it down to what the installed GRPOConfig actually accepts, warning on
-    # anything dropped. The 20-step smoke run then confirms the survivors behave.
+    # The GRPOConfig field names have moved across TRL releases. Keep the desired
+    # config here and filter it to what the installed GRPOConfig accepts, warning
+    # on anything dropped; the 20-step smoke run confirms the survivors behave.
     desired = dict(
         output_dir=args.out,
         learning_rate=args.lr,
+        lr_scheduler_type=args.lr_scheduler_type,
+        warmup_ratio=args.warmup_ratio,
         beta=args.beta,
         num_generations=args.num_generations,
         per_device_train_batch_size=args.per_device_bs,
@@ -127,52 +132,60 @@ def main():
         max_steps=args.max_steps,
         temperature=0.9,
         seed=args.seed,
-        # --- GRPO objective variant (research axis) -------------------------
         loss_type=args.loss_type,
         scale_rewards=not args.no_scale_rewards,
         mask_truncated_completions=args.mask_truncated_completions,
         epsilon_high=args.epsilon_high,
         bf16=True,
         gradient_checkpointing=True,
-        # torchrun wraps the model in DDP (even for 1 GPU). DDP is incompatible
-        # with the *reentrant* gradient-checkpointing implementation -- it runs
-        # backward twice and double-marks the LoRA params ("marked as ready
-        # twice"). The non-reentrant implementation is DDP-safe.
+        # DDP (even 1 GPU via torchrun) is incompatible with *reentrant* grad
+        # checkpointing -- it double-marks the LoRA params. Non-reentrant is safe.
         gradient_checkpointing_kwargs={"use_reentrant": False},
         logging_steps=10,
         save_steps=200,
-        use_vllm=not args.no_vllm,           # vLLM-accelerated rollouts
-        vllm_mode=args.vllm_mode,            # colocate: vLLM shares the single GPU
+        use_vllm=not args.no_vllm,
+        vllm_mode=args.vllm_mode,
         vllm_gpu_memory_utilization=args.vllm_gpu_mem_util,
-        # TRL 0.19.0's colocate path does `generation_kwargs.update(self.args.
-        # generation_kwargs)`, which crashes when this defaults to None. Pass an
-        # empty dict so the update is a harmless no-op.
+        # TRL 0.19.0's colocate path does generation_kwargs.update(None) by
+        # default and crashes; pass an empty dict so the update is a no-op.
         generation_kwargs={},
-        report_to="none",                    # swap to "wandb" to log curves
+        report_to="none",
     )
-    import dataclasses
+    if args.dynamic_sampling:
+        # Field name only present on TRL builds that ship DAPO dynamic sampling.
+        desired["dynamic_sampling"] = True
+
     accepted = {f.name for f in dataclasses.fields(GRPOConfig)}
     unknown = sorted(set(desired) - accepted)
     if unknown:
         print(f"[warn] GRPOConfig in this TRL build does not accept: {unknown} "
-              f"-- dropping them (check the smoke run still trains as intended).")
+              f"-- dropping them (confirm the smoke run still trains as intended).")
+    if args.dynamic_sampling:
+        print(f"[research] dynamic_sampling -> "
+              f"{'ENABLED' if 'dynamic_sampling' in accepted else 'NOT SUPPORTED by this TRL build (ignored); bump TRL to use it'}")
     config = GRPOConfig(**{k: v for k, v in desired.items() if k in accepted})
 
-    reward_funcs = [correctness_reward] if args.no_format_reward \
-        else [correctness_reward, format_reward]
+    correctness = correctness_reward_graded if args.graded_numeric else correctness_reward
+    reward_funcs = [correctness] if args.no_format_reward else [correctness, format_reward]
     print(f"reward_funcs: {[f.__name__ for f in reward_funcs]} | "
           f"loss_type={args.loss_type} scale_rewards={not args.no_scale_rewards} "
-          f"mask_truncated={args.mask_truncated_completions} seed={args.seed}")
+          f"mask_truncated={args.mask_truncated_completions} lr_sched={args.lr_scheduler_type} "
+          f"graded_numeric={args.graded_numeric} seed={args.seed}")
+
+    # Persist the exact recipe BEFORE training so a crashed run is still
+    # self-describing (bookkeeping for the Phase-2 aggregator).
+    Path(args.out).mkdir(parents=True, exist_ok=True)
+    (Path(args.out) / "recipe.json").write_text(json.dumps({
+        "args": vars(args),
+        "reward_funcs": [f.__name__ for f in reward_funcs],
+        "grpo_config_set": {k: v for k, v in desired.items() if k in accepted},
+        "grpo_config_dropped": unknown,
+    }, indent=2, default=str))
 
     trainer = GRPOTrainer(
-        model=model,
-        processing_class=tok,
-        reward_funcs=reward_funcs,
-        args=config,
-        train_dataset=dataset,
-        peft_config=lora,
+        model=model, processing_class=tok, reward_funcs=reward_funcs,
+        args=config, train_dataset=dataset, peft_config=lora,
     )
-
     trainer.train()
     trainer.save_model(args.out)
     tok.save_pretrained(args.out)

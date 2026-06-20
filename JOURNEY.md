@@ -139,6 +139,37 @@ TRL 0.19 supports all the fixes natively, so we exposed them as `hf_job.sh` env 
 
 ---
 
+## Act VI — Hardening the study (turning a reproduction into a contribution)
+
+A code review (see [`REVIEW.md`](REVIEW.md)) flagged that the pivot's headline — the
+per-task compositional-depth taxonomy — was **confounded by task design**, and that
+single-run per-task deltas were **inside the noise floor**. We fixed the foundation
+before spending Phase 2 budget:
+
+- **Rebalanced the data.** `td_or_fg` was 74% "TD" by construction (a model could score
+  74% by never reasoning); it is now ~52/48. Boxes were physically contradictory in ~86%
+  of cases (team TDs disagreed with the player rows); team points are now derived from the
+  players, fully consistent. Last names are unique per box, so "which player" is well-posed.
+- **Made every number defensible.** Eval now reports a naive **best-constant floor** per
+  task, **Wilson 95% CIs** on every cell, a paired **McNemar** test base-vs-tuned, per-class
+  recall (to catch majority-class collapse), and a **measured** terminated fraction (the
+  colocate length telemetry is unreliable). `src/eval/stats.py` is unit-tested against
+  Monte-Carlo and textbook values.
+- **Added the learnability probe.** `src/eval/pass_at_k.py` measures base pass@1/8/64 per
+  task. GRPO can only reinforce what the base samples, so this predicts which matrix cells
+  can move *before* paying for them — it is now Phase 1.
+- **Exposed the knobs the diagnosis implicated.** LR schedule + warmup (the old run decayed
+  LR to ~0), a `beta` sweep (is the KL runaway a discipline problem?), DAPO dynamic sampling,
+  and a partial-credit numeric reward for the sparsity problem. Each run writes a
+  self-describing `recipe.json`.
+
+One honest correction from the review itself: the set task's *exploitable* baseline was ~38%
+(always "none"), not the ~62% first quoted — 62% was the non-empty fraction, which no
+constant answer can capture. The decision task (74%) was the real confound.
+
+**Net:** the reproduction stands, and the study around it is now built to produce a result
+that survives scrutiny rather than a table that doesn't.
+
 ## Cost ledger (HF Jobs, A100-large @ $2.50/hr)
 
 | Item | Cost |

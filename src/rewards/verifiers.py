@@ -48,6 +48,20 @@ def _norm_set(s: str) -> set[str]:
     return items
 
 
+def _name_match(pred: str, gt: str) -> bool:
+    """Exact normalized match, OR a correct last-name-only answer. The generator
+    guarantees unique last names within a box, so 'Smith' unambiguously identifies
+    'A. Smith' -- accepting it avoids undercounting otherwise-correct answers."""
+    p, g = _norm_name(pred), _norm_name(gt)
+    if not g:
+        return False
+    if p == g:
+        return True
+    g_last = g.split()[-1]
+    p_last = p.split()[-1] if p else ""
+    return bool(p_last) and p_last == g_last
+
+
 def _check(pred: str | None, gt: str, answer_type: str) -> bool:
     if pred is None:
         return False
@@ -55,13 +69,12 @@ def _check(pred: str | None, gt: str, answer_type: str) -> bool:
         pv, gv = _parse_number(pred), _parse_number(gt)
         return pv is not None and gv is not None and abs(pv - gv) < 1e-6
     if answer_type == "name":
-        return _norm_name(pred) == _norm_name(gt)
+        return _name_match(pred, gt)
     if answer_type == "set":
         return _norm_set(pred) == _norm_set(gt)
     if answer_type == "decision":
         p = _norm_name(pred)
         g = _norm_name(gt)
-        # accept common phrasings
         if g == "fg":
             return ("fg" in p) or ("field goal" in p)
         if g == "td":
@@ -70,15 +83,45 @@ def _check(pred: str | None, gt: str, answer_type: str) -> bool:
     return False
 
 
+def _numeric_partial(pred: str | None, gt: str) -> float:
+    """Graded credit for a *close* numeric answer (training only; eval stays
+    strict). Exact handled by the caller. Within 10% of the truth earns up to
+    0.5, scaling linearly to 0 at the band edge. The cap (0.5 << 1.0 exact) and
+    the tight band keep a 'guess the mean' policy from farming it."""
+    pv, gv = _parse_number(pred), _parse_number(gt)
+    if pv is None or gv is None:
+        return 0.0
+    band = max(1.0, abs(gv) * 0.10)
+    err = abs(pv - gv)
+    if err >= band:
+        return 0.0
+    return 0.5 * (1.0 - err / band)
+
+
 def correctness_reward(prompts, completions, ground_truth=None, answer_type=None, **kwargs):
-    """+1.0 if the extracted <answer> matches ground truth, else 0.0."""
+    """+1.0 if the extracted <answer> matches ground truth (strict), else 0.0."""
     out = []
     for i, comp in enumerate(completions):
-        text = _to_text(comp)
-        pred = extract_answer(text)
-        gt = ground_truth[i]
-        at = answer_type[i]
-        out.append(1.0 if _check(pred, gt, at) else 0.0)
+        pred = extract_answer(_to_text(comp))
+        out.append(1.0 if _check(pred, ground_truth[i], answer_type[i]) else 0.0)
+    return out
+
+
+def correctness_reward_graded(prompts, completions, ground_truth=None, answer_type=None, **kwargs):
+    """Like correctness_reward but with partial credit on *numeric* tasks, to
+    densify the signal where the strict 0/1 reward is sparse (REVIEW.md sparsity
+    lever). 1.0 exact; up to 0.5 for numeric answers within 10%; set/name/decision
+    stay strict. Opt-in via --graded_numeric; eval is always strict."""
+    out = []
+    for i, comp in enumerate(completions):
+        pred = extract_answer(_to_text(comp))
+        gt, at = ground_truth[i], answer_type[i]
+        if _check(pred, gt, at):
+            out.append(1.0)
+        elif at == "numeric":
+            out.append(_numeric_partial(pred, gt))
+        else:
+            out.append(0.0)
     return out
 
 

@@ -5,7 +5,8 @@ Each row:
     "prompt": [ {role, content}, ... ],   # chat format; trainer applies template
     "ground_truth": "...",
     "answer_type": "numeric|name|set|decision",
-    "kind": "<task kind>"
+    "kind": "<task kind>",
+    "depth": <int>                          # compositional depth (Q3 taxonomy)
   }
 
 Usage:
@@ -32,6 +33,7 @@ def build(n: int, rng: random.Random) -> list[dict]:
             "ground_truth": s.answer,
             "answer_type": s.answer_type,
             "kind": s.kind,
+            "depth": s.depth,
         })
     return rows
 
@@ -59,7 +61,6 @@ def main():
     write_jsonl(train, out / "train.jsonl")
     write_jsonl(eval_, out / "eval.jsonl")
 
-    # quick distribution print
     from collections import Counter
     dist = Counter(r["kind"] for r in eval_)
     print(f"wrote {len(train)} train, {len(eval_)} eval to {out}/")
