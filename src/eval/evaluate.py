@@ -191,6 +191,8 @@ def main():
     ap.add_argument("--data", default="data_out/eval.jsonl")
     ap.add_argument("--label", required=True)
     ap.add_argument("--out", default="results")
+    ap.add_argument("--bs", type=int, default=16,
+                    help="generation batch size; lower (e.g. 4-8) for a 10GB GPU.")
     ap.add_argument("--max_new_tokens", type=int, default=1024,
                     help="cap on generated tokens at eval; default matches the "
                          "study's 1024 completion budget so eval isn't truncated.")
@@ -199,7 +201,7 @@ def main():
     rows = [json.loads(l) for l in open(args.data)]
     model, tok = load_model(args.model, args.adapter)
     preds, terminated = generate_batch(model, tok, [r["prompt"] for r in rows],
-                                       max_new_tokens=args.max_new_tokens)
+                                       max_new_tokens=args.max_new_tokens, bs=args.bs)
 
     result = summarize(rows, preds, terminated)
     result.update({
