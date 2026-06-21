@@ -72,9 +72,42 @@ GRPO can only sharpen what's already sampled, so:
 - One model, one seed, `max_new=384`. Parsing verified healthy (every kind has pass@64 > 0,
   so the checker does catch correct answers).
 
+### Cross-family: Qwen2.5-1.5B vs SmolLM2-1.7B (same 60 items)
+
+| Task              | type                 | SmolLM2 p@64 / never | Qwen p@64 / never | verdict                     |
+| ----------------- | -------------------- | -------------------: | ----------------: | --------------------------- |
+| `td_or_fg`        | decision             |            100% / 0% |         100% / 0% | both reach it               |
+| `most_scrimmage`  | argmax+name          |            88% / 12% |         100% / 0% | both reach it               |
+| `scrimmage_total` | add 2 fields         |        **29% / 71%** |     **100% / 0%** | wall only on SmolLM2        |
+| `total_tds`       | sum a column         |        **20% / 80%** |     **100% / 0%** | wall only on SmolLM2        |
+| `hundred_yd_rec`  | set/threshold        |            30% / 70% |         70% / 30% | hard for both               |
+| `team_points`     | composite arithmetic |        **30% / 70%** |     **40% / 60%** | **wall on BOTH**            |
+| **Overall**       | —                    |            52% / 48% |         85% / 15% | Qwen ~6x stronger at pass@1 |
+
+Two findings:
+
+1. **The Qwen confound is live.** The two simple-arithmetic tasks (add two fields, sum a
+   column) go from _unreachable_ on SmolLM2 to _perfectly reachable_ on Qwen (frac_never
+   71->0%, 80->0%). A Qwen-only study would watch GRPO light these up and conclude "RLVR
+   taught structured-data arithmetic" — when Qwen's pretraining already knew it. The
+   SmolLM2 control catches it. This is the Spurious Rewards effect demonstrated in-domain,
+   and the empirical justification for the multi-family design.
+2. **A model-invariant ceiling exists.** `team_points` (composite: TD count x6, then
+   - FG x3 + XP + 2pt) walls _both_ models (frac_never 60-70%, pass@64 <= 40%);
+     `hundred_yd_rec` is hard for both too. These confound-resistant tasks are where a
+     _credible_ claim about GRPO's limits can be made, because neither base samples the
+     answer regardless of pretraining.
+
+**Refined Q3.** The dividing line is not "arithmetic vs select/decide." It is a
+**model-dependent simple-arithmetic threshold** (the confound) sitting atop a
+**model-invariant composite-arithmetic ceiling** (the real finding). Treat
+`team_points` (+ `hundred_yd_rec`) as the confound-resistant subset for headline claims.
+
+**Updated prediction for training.** On Qwen, expect large "gains" on
+`scrimmage_total`/`total_tds` — but that is GRPO _amplifying Qwen's pretrained arithmetic_,
+not teaching it; the SmolLM2 run is the control that exposes it. Expect `team_points` to
+stay flat under GRPO for **both** families — the clean, credible result.
+
 ### Status / next
 
-- [x] SmolLM2-1.7B base pass@k (this run) → `results/passk_base_smollm2.json`
-- [ ] Same probe on **Qwen2.5-1.5B** (does the arithmetic wall replicate off-SmolLM2? — Q1)
-- [ ] **R0 vs R1** training on SmolLM2 (test the prediction above, read via `compare.py`)
-- [ ] Scale the probe to the full 800-item set / add a second seed before publishing numbers
+- [x] SmolLM2-1.7B base pass@k (this run) → `results/passk_base_smollm2.json
