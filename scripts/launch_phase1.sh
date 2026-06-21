@@ -28,8 +28,8 @@ case "${1:-help}" in
   smoke)   job "-e SMOKE_ONLY=1 -e MODEL=$SMOL $FIX" l40sx1 1h ;;
   smol-r0) job "-e MODEL=$SMOL -e REPO_NAME=gg-smollm2-r0-s7" ;;          # R0 = TRL defaults (bnpo, beta .04)
   smol-r1) job "-e MODEL=$SMOL -e REPO_NAME=gg-smollm2-r1-s7 $FIX" ;;
-  qwen-r0) job "-e MODEL=$QWEN -e REPO_NAME=gg-qwen15b-r0-s7" ;;
-  qwen-r1) job "-e MODEL=$QWEN -e REPO_NAME=gg-qwen15b-r1-s7 $FIX" ;;
+  qwen-r0) job "-e MODEL=$QWEN -e REPO_NAME=gg-qwen15b-r0-s7" a100-large 4h ;;   # 152K vocab -> needs 80GB
+  qwen-r1) job "-e MODEL=$QWEN -e REPO_NAME=gg-qwen15b-r1-s7 $FIX" a100-large 4h ;;
   dl)
     : "${NS:?set NS to your HF username: export NS=\$(uvx --from huggingface_hub hf auth whoami | head -1)}"
     mkdir -p runs_dl
