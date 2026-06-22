@@ -3,7 +3,7 @@
 # Run from YOUR authenticated machine (jobs bill your HF account; clone is from GitHub).
 # Prereqs (once):
 #   uvx --from huggingface_hub hf auth login
-#   export NS="$(uvx --from huggingface_hub hf auth whoami | head -1)"   # your HF username (for `dl`)
+#   export NS="$(python -c 'from huggingface_hub import whoami; print(whoami()["name"])')"   # your HF username (for `dl`)
 # Usage: run the smoke first, then the four training jobs, then `dl` to aggregate:
 #   bash scripts/launch_phase1.sh smoke        # ~5 min, cents — wait for "smoke passed"
 #   bash scripts/launch_phase1.sh smol-r0      # each ~$5-6 on l40sx1; run in 4 terminals
@@ -31,7 +31,7 @@ case "${1:-help}" in
   qwen-r0) job "-e MODEL=$QWEN -e REPO_NAME=gg-qwen15b-r0-s7" a100-large 4h ;;   # 152K vocab -> needs 80GB
   qwen-r1) job "-e MODEL=$QWEN -e REPO_NAME=gg-qwen15b-r1-s7 $FIX" a100-large 4h ;;
   dl)
-    : "${NS:?set NS to your HF username: export NS=\$(uvx --from huggingface_hub hf auth whoami | head -1)}"
+    : "${NS:?set NS: export NS=\$(python -c 'from huggingface_hub import whoami; print(whoami()["name"])')}"
     mkdir -p runs_dl
     for r in $REPOS; do uvx --from huggingface_hub hf download "$NS/$r" --local-dir "runs_dl/$r"; done
     python src/eval/aggregate.py --out results runs_dl/*/ ;;
