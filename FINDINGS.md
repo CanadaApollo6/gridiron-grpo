@@ -93,9 +93,9 @@ Two findings:
    SmolLM2 control catches it. This is the Spurious Rewards effect demonstrated in-domain,
    and the empirical justification for the multi-family design.
 2. **A model-invariant ceiling exists.** `team_points` (composite: TD count x6, then
-   - FG x3 + XP + 2pt) walls _both_ models (frac_never 60-70%, pass@64 <= 40%);
+   - FG x3 + XP + 2pt) walls _both_ models (frac*never 60-70%, pass@64 <= 40%);
      `hundred_yd_rec` is hard for both too. These confound-resistant tasks are where a
-     _credible_ claim about GRPO's limits can be made, because neither base samples the
+     \_credible* claim about GRPO's limits can be made, because neither base samples the
      answer regardless of pretraining.
 
 **Refined Q3.** The dividing line is not "arithmetic vs select/decide." It is a
@@ -103,11 +103,29 @@ Two findings:
 **model-invariant composite-arithmetic ceiling** (the real finding). Treat
 `team_points` (+ `hundred_yd_rec`) as the confound-resistant subset for headline claims.
 
-**Updated prediction for training.** On Qwen, expect large "gains" on
-`scrimmage_total`/`total_tds` — but that is GRPO _amplifying Qwen's pretrained arithmetic_,
-not teaching it; the SmolLM2 run is the control that exposes it. Expect `team_points` to
-stay flat under GRPO for **both** families — the clean, credible result.
+## **Updated prediction for training.** On Qwen, exp
 
-### Status / next
+## 2026-06-21 — Correction: the Qwen R0/R1 training cells are INVALID
 
-- [x] SmolLM2-1.7B base pass@k (this run) → `results/passk_base_smollm2.json
+A Qwen generation bug broke the first Phase-2-lite matrix: vLLM rollouts never emitted
+Qwen2.5-Instruct's `<|im_end|>` stop token, so `clipped_ratio=1.0` the whole run (every
+completion hit the length cap). One root cause, two outcomes:
+
+- **Qwen/R1** (`mask_truncated` on): masking every truncated completion zeroed the loss →
+  `grad_norm=0`, NaN KL → the optimizer never stepped → LoRA stayed at init (no-op) → eval
+  byte-identical to base → a fake `+0.0` on every task. **Void.**
+- **Qwen/R0**: trained, but on 100%-truncated completions (degenerate regime). The
+  `+0.3 (ns)` "saturated" read probably survives (paired delta cancels a shared truncation
+  handicap to first order), but **re-run for a clean comparison.**
+
+**Do NOT** conclude "Dr. GRPO underperforms / vanishing updates on Qwen" — there was no
+update to compare. The Qwen R0-vs-R1 contrast is void until both re-run.
+
+**SmolLM2 is untouched and real:** it terminates and trained; the `+14.4 / +10.5pp (***)`
+gains and the `team_points` invariant wall stand. Eval (HF `.generate`) terminated Qwen
+fine — only the vLLM _training_ path didn't, which localized the fix to rollout stop-tokens.
+
+**Fixes shipped:** `train_grpo.py` passes each model's EOS ids as vLLM stop tokens and
+aborts on a no-update run (NaN **or** `grad_norm≈0`); recipe split so R1 = Dr. GRPO core and
+`mask_truncated` moved to R2 (it's a DAPO technique, not Dr. GRPO). Re-run sequence:
+`qwen-smoke` (validate, cents) → `qwen-r0` + `qwen-r1`.

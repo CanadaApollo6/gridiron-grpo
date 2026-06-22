@@ -37,7 +37,7 @@ compositional depth. We ask **when RLVR helps there**, with the controls the fie
   **consistent across families**?
 - **Q-learnability (gating).** Per task and family, what is the **base model's
   pass@k**? GRPO can only reinforce what the base already samples, so a task with base
-  pass@8 ≈ 0 is unlearnable by GRPO regardless of recipe. This is measured *first* and
+  pass@8 ≈ 0 is unlearnable by GRPO regardless of recipe. This is measured _first_ and
   gates the rest.
 - **Q-KL (mechanism).** Is the instability a KL-discipline problem? A `beta` sweep
   (0 → 0.2) tests whether a stronger/zero anchor changes the drift picture.
@@ -72,6 +72,7 @@ and ops the answer requires. `depth` ships on every row (`KIND_DEPTH`) so eval g
 `evaluate.py` as `best_constant_by_kind`). Every Δ is judged against this, never against 0.
 
 **Data invariants (hardening pass — see REVIEW.md):**
+
 - `td_or_fg` deficit is sampled ~50/50, so the decision can't be won by always
   answering "TD" (was 74% TD).
 - Boxes are **physically consistent**: team points derive from the players' own TDs +
@@ -87,20 +88,26 @@ at low depth and negative at high depth, with the same ordering across families.
 
 ## Recipes (the objective axis)
 
-| ID               | Config                                                                       | Purpose                                            |
-| ---------------- | ---------------------------------------------------------------------------- | -------------------------------------------------- |
-| **R0 naive**     | `loss_type=bnpo` (TRL default), `scale_rewards=True`, `beta=0.04`            | what a typical user gets; the failing baseline     |
-| **R1 drgrpo**    | `loss_type=dr_grpo`, `NO_SCALE_REWARDS=1`, `MASK_TRUNCATED=1`, `beta=0.04`   | the published length-bias + stability fixes        |
-| **R2 +dapoclip** | R1 + `EPSILON_HIGH=0.28` + `DYNAMIC_SAMPLING=1`                              | DAPO asymmetric clip + zero-advantage filtering    |
-| **R3 corr-only** | best recipe + `NO_FORMAT_REWARD=1`                                          | reward ablation (is the format bonus a trap here?) |
-| **R4 graded**    | best recipe + `GRADED_NUMERIC=1`                                            | partial-credit numeric reward (densify sparse signal) |
-| **β-sweep**      | R0 with `BETA ∈ {0, 0.04, 0.1, 0.2}`                                        | is the instability a KL-discipline problem?        |
+| ID               | Config                                                            | Purpose                                               |
+| ---------------- | ----------------------------------------------------------------- | ----------------------------------------------------- |
+| **R0 naive**     | `loss_type=bnpo` (TRL default), `scale_rewards=True`, `beta=0.04` | what a typical user gets; the failing baseline        |
+| **R1 drgrpo**    | `loss_type=dr_grpo`, `NO_SCALE_REWARDS=1`, `beta=0.04`            | Dr. GRPO core (length-bias + difficulty-bias fix)     |
+| **R2 +dapoclip** | R1 + `MASK_TRUNCATED=1`, `EPSILON_HIGH=0.28`                      | DAPO stability (mask-truncated + asymmetric clip)     |
+| **R3 corr-only** | best recipe + `NO_FORMAT_REWARD=1`                                | reward ablation (is the format bonus a trap here?)    |
+| **R4 graded**    | best recipe + `GRADED_NUMERIC=1`                                  | partial-credit numeric reward (densify sparse signal) |
+| **β-sweep**      | R0 with `BETA ∈ {0, 0.04, 0.1, 0.2}`                              | is the instability a KL-discipline problem?           |
 
 Shared: 1200 steps, 1024 completion budget, num_generations=8, temp 0.9, LoRA r=16,
 fixed left-padded length-matched eval, n_train=8000 / n_eval=800, seed=7. **LR schedule
 is a knob** (`--lr_scheduler_type`, `--warmup_ratio`): the default `cosine` decays to ~0,
 so for a fair "does it learn" probe also try `constant_with_warmup` and a higher peak LR
 (1e-6 is low for LoRA) — an under-powered optimizer and "RLVR doesn't help" look identical.
+
+> **Termination is a prerequisite for `mask_truncated`.** If rollouts never emit a stop
+> token (e.g. vLLM not honoring Qwen2.5-Instruct's `<|im_end|>` -> `clipped_ratio=1.0`),
+> masking truncated completions zeroes the batch -> `grad_norm=0` / NaN KL -> a silent
+> no-op adapter. `train_grpo.py` now passes each model's EOS ids as vLLM stop tokens and
+> aborts on a no-update run; `mask_truncated` is confined to R2.
 
 ## Metrics
 
@@ -147,7 +154,7 @@ repos into one family×recipe×kind table + figures; because each run is self-de
 
 ## Threats to validity (state them up front)
 
-- **Single seed** is not a result → multi-seed key cells (training *and* data seed) before
+- **Single seed** is not a result → multi-seed key cells (training _and_ data seed) before
   claiming anything.
 - **Qwen confound** → the whole multi-family design; report per-family, never pooled-only.
 - **OLMo-Instruct is already RLVR'd** → also run the `-SFT` base.

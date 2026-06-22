@@ -14,6 +14,7 @@ Example:
 import argparse
 import dataclasses
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -118,6 +119,17 @@ def main():
     # The GRPOConfig field names have moved across TRL releases. Keep the desired
     # config here and filter it to what the installed GRPOConfig accepts, warning
     # on anything dropped; the 20-step smoke run confirms the survivors behave.
+    # Make rollouts terminate. Qwen2.5-Instruct emits <|im_end|> (151645) but the
+    # default vLLM stop can miss it -> completions run to the cap (clipped_ratio=1.0),
+    # which then lets mask_truncated zero the whole batch (grad_norm=0). Eval via HF
+    # .generate already stops fine; this fixes the TRAINING/vLLM path. General across
+    # families (reads each model's declared EOS ids).
+    _eos = getattr(model.generation_config, "eos_token_id", None) or tok.eos_token_id
+    if isinstance(_eos, int):
+        _eos = [_eos]
+    gen_kwargs = {"stop_token_ids": list(_eos)} if _eos else {}
+    print(f"vLLM stop_token_ids = {gen_kwargs.get('stop_token_ids')}")
+
     desired = dict(
         output_dir=args.out,
         learning_rate=args.lr,
@@ -148,7 +160,7 @@ def main():
         vllm_gpu_memory_utilization=args.vllm_gpu_mem_util,
         # TRL 0.19.0's colocate path does generation_kwargs.update(None) by
         # default and crashes; pass an empty dict so the update is a no-op.
-        generation_kwargs={},
+        generation_kwargs=gen_kwargs,
         report_to="none",
     )
     if args.dynamic_sampling:
@@ -187,6 +199,24 @@ def main():
         args=config, train_dataset=dataset, peft_config=lora,
     )
     trainer.train()
+
+    # Fail loud on divergence: a NaN in loss/kl/grad means the policy blew up and
+    # the LoRA adapter never learned (stays at init -> silent no-op -> a fake +0.0
+    # eval that masquerades as "the recipe had no effect"). Refuse to save garbage.
+    _hist = trainer.state.log_history
+    nan_steps = [h for h in _hist
+                 if any(isinstance(h.get(k), float) and math.isnan(h.get(k))
+                        for k in ("loss", "kl", "grad_norm", "reward"))]
+    _gn = [h["grad_norm"] for h in _hist
+           if isinstance(h.get("grad_norm"), (int, float)) and not math.isnan(h["grad_norm"])]
+    never_moved = bool(_gn) and max(_gn) < 1e-8
+    if nan_steps or never_moved:
+        print(f"[FATAL] no valid update: nan_steps={len(nan_steps)}, "
+              f"max_grad_norm={max(_gn) if _gn else 'NA'}. The adapter would be a "
+              f"no-op (e.g. the Qwen clipped_ratio=1.0 + mask_truncated failure). "
+              f"NOT saving. Check rollout termination + recipe, then re-run.")
+        sys.exit(1)
+
     trainer.save_model(args.out)
     tok.save_pretrained(args.out)
     print(f"saved LoRA adapter + tokenizer to {args.out}")

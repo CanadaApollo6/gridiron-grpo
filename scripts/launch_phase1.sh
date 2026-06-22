@@ -21,7 +21,8 @@ job() {  # job "<-e flags>" [flavor] [timeout]
 
 SMOL=HuggingFaceTB/SmolLM2-1.7B-Instruct
 QWEN=Qwen/Qwen2.5-1.5B-Instruct
-FIX="-e LOSS_TYPE=dr_grpo -e NO_SCALE_REWARDS=1 -e MASK_TRUNCATED=1"   # R1 = Dr.GRPO + DAPO stability
+FIX="-e LOSS_TYPE=dr_grpo -e NO_SCALE_REWARDS=1"                       # R1 = Dr.GRPO core
+DAPO="$FIX -e MASK_TRUNCATED=1 -e EPSILON_HIGH=0.28"                   # R2 = R1 + DAPO stability
 REPOS="gg-smollm2-r0-s7 gg-smollm2-r1-s7 gg-qwen15b-r0-s7 gg-qwen15b-r1-s7"
 
 case "${1:-help}" in
@@ -30,6 +31,9 @@ case "${1:-help}" in
   smol-r1) job "-e MODEL=$SMOL -e REPO_NAME=gg-smollm2-r1-s7 $FIX" ;;
   qwen-r0) job "-e MODEL=$QWEN -e REPO_NAME=gg-qwen15b-r0-s7" a100-large 4h ;;   # 152K vocab -> needs 80GB
   qwen-r1) job "-e MODEL=$QWEN -e REPO_NAME=gg-qwen15b-r1-s7 $FIX" a100-large 4h ;;
+  qwen-smoke) job "-e SMOKE_ONLY=1 -e MODEL=$QWEN $FIX" a100-large 1h ;;   # validate EOS fix on Qwen (cents)
+  smol-r2) job "-e MODEL=$SMOL -e REPO_NAME=gg-smollm2-r2-s7 $DAPO" ;;
+  qwen-r2) job "-e MODEL=$QWEN -e REPO_NAME=gg-qwen15b-r2-s7 $DAPO" a100-large 4h ;;
   dl)
     : "${NS:?set NS: export NS=\$(python -c 'from huggingface_hub import whoami; print(whoami()["name"])')}"
     mkdir -p runs_dl
