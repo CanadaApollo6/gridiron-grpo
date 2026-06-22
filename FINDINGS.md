@@ -138,3 +138,38 @@ aborts on a no-update run (NaN **or** `grad_norm≈0`); recipe split so R1 = Dr.
 >
 > **Re-run smoke (2026-06-22) PASSED:** Qwen R1 `grad_norm` 0.95→11.6, `kl` ~0.03–0.04 (finite),
 > guard clear. No-op fixed; full Qwen R0/R1 cleared to run.
+
+---
+
+## 2026-06-22 — Validated R0/R1 matrix (Qwen re-run, finite KL/grad)
+
+Qwen R0 + R1 re-run after the termination / no-op fix; logs confirm **finite KL and nonzero
+grad_norm** (the no-op is gone). `clipped_ratio` still reads 1.0 — the known-broken colocate
+metric; ignore it.
+
+| Family / recipe        |    overall Δ | td_or_fg | scrimmage | most_scrim | total_tds | hundred_yd | team_points |
+| ---------------------- | -----------: | -------: | --------: | ---------: | --------: | ---------: | ----------: |
+| Qwen2.5 / R0           |      +0.9 ns |     +8.2 |      +0.9 |       +0.0 |      -4.7 |       +1.4 |        +0.0 |
+| Qwen2.5 / R1 (Dr.GRPO) |      +0.9 ns |     +4.5 |      +0.9 |       +0.0 |      -0.7 |       +0.7 |        +0.0 |
+| SmolLM2 / R0           | +14.4 \*\*\* |    +47.0 |      +2.8 |       +4.6 |     +10.0 |      +20.3 |        +0.0 |
+| SmolLM2 / R1 (+mask)\* | +10.5 \*\*\* |    +47.0 |      +3.7 |       +3.8 |      +0.7 |       +8.0 |        +0.0 |
+
+\*SmolLM2/R1 still used `mask_truncated` (now an R2 ingredient); its weaker total_tds/hundred
+gains may be a masking artifact, not a Dr. GRPO effect. **Re-run clean for a matched R1.**
+
+**Headline (now trustworthy — valid adapters, healthy training dynamics):**
+
+1. **RLVR amplifies a weak base with reachable headroom, not a saturated one** — SmolLM2
+   (+14.4 / +10.5pp, *\*\*) vs Qwen (+0.9, ns in *both\* recipes). Qwen's flatness is real
+   saturation (high base pass@1), confirmed by finite KL/grad — not the earlier no-op bug.
+2. **`team_points` is a model- and recipe-invariant wall (+0.0 across all four cells)** —
+   composite arithmetic neither base samples, so GRPO can't teach it.
+3. **Qwen-only evaluation would have reported "GRPO doesn't help" and missed the SmolLM2
+   effect.** The multi-family control is the contribution.
+
+Possible mild signal (within noise, n~130/kind, ns): Qwen `total_tds` regressed under R0
+(-4.7), less so under Dr. GRPO (-0.7) — consistent with pass@k _narrowing_ (Yue et al.); needs
+seeds to confirm.
+
+**Open:** re-run SmolLM2/R1 without `mask_truncated` (clean Q2), then add 2-3 seeds on the
+decisive cells before publishing numbers.

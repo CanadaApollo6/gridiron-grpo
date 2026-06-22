@@ -42,10 +42,10 @@ def _recipe_tag(cfg: dict) -> str:
     beta = cfg.get("beta")
     if lt == "bnpo" and sr and not mt:
         base = "R0"
-    elif lt == "dr_grpo" and not sr and mt and not eh:
-        base = "R1"
-    elif lt == "dr_grpo" and not sr and mt and eh:
-        base = "R2"
+    elif lt == "dr_grpo" and not sr and not mt:
+        base = "R1"          # Dr. GRPO core (no mask_truncated)
+    elif lt == "dr_grpo" and not sr and mt:
+        base = "R2"          # + DAPO (mask_truncated [+ epsilon_high])
     else:
         base = f"{lt}{'' if sr else '+nsr'}{'+mt' if mt else ''}{'+eh' if eh else ''}"
     if beta is not None and beta != 0.04:
