@@ -129,3 +129,12 @@ fine — only the vLLM _training_ path didn't, which localized the fix to rollou
 aborts on a no-update run (NaN **or** `grad_norm≈0`); recipe split so R1 = Dr. GRPO core and
 `mask_truncated` moved to R2 (it's a DAPO technique, not Dr. GRPO). Re-run sequence:
 `qwen-smoke` (validate, cents) → `qwen-r0` + `qwen-r1`.
+
+> **Telemetry caveat (re the entry above):** `clipped_ratio=1.0`, `terminated_length=0`, and
+> `min=mean=max` are unreliable in vLLM colocate — they appear in _trusted_ runs too (SmolLM2,
+> and the original 1.5B log) with `mean_length` well below the cap. They do **not** prove
+> (non-)termination. The decisive signals were NaN KL + `grad_norm=0`. Root cause = `mask_truncated`
+> making the masked loss `0/0`; fix = drop it from R1 (+ EOS stop-tokens as belt-and-suspenders).
+>
+> **Re-run smoke (2026-06-22) PASSED:** Qwen R1 `grad_norm` 0.95→11.6, `kl` ~0.03–0.04 (finite),
+> guard clear. No-op fixed; full Qwen R0/R1 cleared to run.
