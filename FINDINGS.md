@@ -168,8 +168,34 @@ gains may be a masking artifact, not a Dr. GRPO effect. **Re-run clean for a mat
    effect.** The multi-family control is the contribution.
 
 Possible mild signal (within noise, n~130/kind, ns): Qwen `total_tds` regressed under R0
-(-4.7), less so under Dr. GRPO (-0.7) — consistent with pass@k _narrowing_ (Yue et al.); needs
-seeds to confirm.
+(-4.7), less so
 
-**Open:** re-run SmolLM2/R1 without `mask_truncated` (clean Q2), then add 2-3 seeds on the
-decisive cells before publishing numbers.
+---
+
+## 2026-06-22 — Clean SmolLM2/R1 (Dr. GRPO core); the EOS fix demonstrably works
+
+SmolLM2/R1 re-run without `mask_truncated`. **The EOS stop-token fix worked:** `clipped_ratio`
+**1.0 → 0.0**, completions terminate (mean 55 tok, min 3 / max 458 — real spread). So the earlier
+`clipped_ratio=1.0` was partly a _real_ non-termination problem, not pure telemetry noise.
+(Correction to the 2026-06-22 telemetry caveat above.) Note: the fix took for SmolLM2 but **not**
+Qwen (Qwen still `clipped_ratio=1.0`) — see the Qwen caveat below.
+
+**Result: 5.0% → 16.0% (+11.0pp), McNemar p<0.001, 89 gains vs 1 regression.** Essentially
+identical to the masked R1 (+10.5) → confirms `mask_truncated` was inert on SmolLM2, as predicted.
+Per-task: `td_or_fg` 0→47% (base scored _below_ its 53% floor — GRPO taught the format + decision);
+`team_points` 0→0% (wall holds); gains track pass@k headroom.
+
+**Q2 (do the published fixes help?) — preliminary and confounded.** R0 (+14.4) ≥ R1 (+11.0): Dr.
+GRPO did **not** beat naive GRPO; if anything marginally worse. _Caveat:_ the EOS fix landed
+mid-matrix, so R0 trained in the long-completion regime and R1 in the terminating regime — not a
+clean same-regime comparison. Honest claim: **no evidence the published fixes improve over naive
+GRPO in this domain.**
+
+**Qwen caveat:** the EOS fix did not take for Qwen, so its training runs were in the degenerate
+long-completion regime. The Qwen-flat / saturation conclusion still holds (pass@k independently
+shows Qwen's base is already capable → low headroom), but an airtight Qwen cell needs the
+termination fixed + a re-run.
+
+**Status:** headline (headroom-gated amplification + invariant `team_points` wall + confound) is
+solid from multiple angles. Remaining for publishable numbers: **seeds** on the SmolLM2 headline
+cell. Optional polish: same-regime R0/R1 and a terminating Qwen re-run.
