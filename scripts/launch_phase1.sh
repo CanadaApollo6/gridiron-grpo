@@ -14,7 +14,7 @@
 set -euo pipefail
 
 job() {  # job "<-e flags>" [flavor] [timeout]
-  uvx --from huggingface_hub hf jobs run --flavor "${2:-l40sx1}" --timeout "${3:-5h}" --secrets HF_TOKEN $1 \
+  uvx --from huggingface_hub hf jobs run ${DETACH:+--detach} --flavor "${2:-l40sx1}" --timeout "${3:-5h}" --secrets HF_TOKEN $1 \
     pytorch/pytorch:2.6.0-cuda12.4-cudnn9-devel \
     bash -c "apt-get update -qq && apt-get install -y -qq git && git clone --depth 1 https://github.com/CanadaApollo6/gridiron-grpo.git /tmp/gg && bash /tmp/gg/scripts/hf_job.sh"
 }
