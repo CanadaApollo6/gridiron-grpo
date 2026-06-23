@@ -16,29 +16,29 @@ The domain is football (box scores, late-game situations) because verifiable spo
 
 ![GRPO base vs. tuned — SmolLM2 leaps; the saturated Qwen barely moves](assets/hero.png)
 
-| Model | Base | GRPO-tuned | Δ | McNemar |
+| Model | Base | GRPO-tuned | Δ (3 seeds) | sig. |
 | --- | ---: | ---: | ---: | :--- |
-| **SmolLM2-1.7B** — weak base, room to learn | 5.0% | **19.4%** | **+14.4pp** | `***`, p<0.001 |
-| Qwen2.5-1.5B — already-capable base (control) | 29.4% | 30.2% | +0.9pp | ns, p=0.38 |
+| **SmolLM2-1.7B** — weak base, room to learn | 5.0% | **19.2%** | **+14.2 ± 0.3pp** | `***` |
+| Qwen2.5-1.5B — already-capable base (control) | 29.4% | 30.0% | +0.6 ± 0.3pp | ns |
 
-SmolLM2 nearly **quadruples** its verifiable accuracy — 119 answers flip from wrong to right, just 4 the other way — while Qwen, already ~29% off the shelf, has almost nothing left to reinforce. Same trainer, same data, same 1,200 steps. **The lesson: when a model is bad at a task, the better move is often the right _objective_ on a model with headroom, not a bigger model.**
+SmolLM2 nearly **quadruples** its verifiable accuracy — well over 100 answers flip from wrong to right each seed, only a handful the other way — while Qwen, already ~29% off the shelf, has almost nothing left to reinforce. Same trainer, same data, same 1,200 steps. **The lesson: when a model is bad at a task, the better move is often the right _objective_ on a model with headroom, not a bigger model.**
 
-**And it holds on _real_ NFL games.** Trained on synthetic, evaluated on real 2023 box scores (nflverse, n=509): SmolLM2 **+21.4pp** (8.2% → 29.7%, p<0.0001), Qwen flat (+0.0pp) — the same split, on a real distribution. (`src/data/build_real_eval.py`; single-seed preview, seed-averaged once the matrix lands.)
+**And it holds on _real_ NFL games.** Trained on synthetic, evaluated on real 2023 box scores (nflverse, n=509): SmolLM2 **+21.5 ± 0.1pp** (8.2% → 29.8%, 3 seeds, p<0.0001), Qwen flat (+0.0pp) — the same split, on a real distribution. (`src/data/build_real_eval.py`.)
 
 **Where the gain comes from** — and where it doesn't (per task, base → GRPO):
 
 | Task | What it tests | Base | GRPO | Δ (pp) |
 | --- | --- | ---: | ---: | ---: |
 | `td_or_fg` | rule-based decision | 0.0% | 47.0% | **+47.0** |
-| `hundred_yd_rec` | set membership (≥100 rec yds) | 0.0% | 20.3% | +20.3 |
-| `total_tds` | sum touchdowns across players | 0.0% | 10.0% | +10.0 |
-| `most_scrimmage` | argmax over the table | 24.4% | 29.0% | +4.6 |
-| `scrimmage_total` | single-player rush + rec sum | 7.5% | 10.3% | +2.8 |
+| `hundred_yd_rec` | set membership (≥100 rec yds) | 0.0% | 19.8% | +19.8 |
+| `total_tds` | sum touchdowns across players | 0.0% | 8.9% | +8.9 |
+| `most_scrimmage` | argmax over the table | 24.4% | 29.5% | +5.1 |
+| `scrimmage_total` | single-player rush + rec sum | 7.5% | 10.6% | +3.1 |
 | `team_points` | players' TDs (×6) + the FG/XP/2pt line | 0.0% | 0.0% | +0.0 |
 
 The flat `team_points` row is the honest other half of the story: composite arithmetic the base _never_ samples, so GRPO has nothing to reinforce. Gains track base pass@k headroom — full CIs, the paired McNemar test, and the multi-seed × multi-recipe matrix are in [`FINDINGS.md`](FINDINGS.md).
 
-**Runs:** GRPO + LoRA (r=16) · group size 8 · 1,200 steps · seed 7 · naive-GRPO recipe (TRL defaults) · SmolLM2-1.7B on 1× L40S, Qwen2.5-1.5B on 1× A100 80GB · **~$5–15 each** on [HF Jobs](https://huggingface.co/docs/hub/jobs). Regenerate any run's table with `python src/eval/results_to_md.py <baseline>.json <grpo>.json`, and this figure with `python src/eval/make_hero.py`.
+**Runs:** GRPO + LoRA (r=16) · group size 8 · 1,200 steps · **3 seeds (7/13/21)** · naive-GRPO recipe (TRL defaults) · SmolLM2-1.7B on 1× L40S, Qwen2.5-1.5B on 1× A100 80GB · **~$5–15 each** on [HF Jobs](https://huggingface.co/docs/hub/jobs). Regenerate any run's table with `python src/eval/results_to_md.py <baseline>.json <grpo>.json`, and this figure with `python src/eval/make_hero.py`.
 
 ## What you'll learn
 
@@ -69,7 +69,7 @@ pip install -r requirements.txt
 python src/data/build_dataset.py --n_train 8000 --n_eval 800 --seed 7 --out data_out
 
 # 2. Train — runs a 20-step smoke test first, then the real run.
-#    (Swap in HuggingFaceTB/SmolLM2-1.7B-Instruct to reproduce the +14.4pp headline.)
+#    (Swap in HuggingFaceTB/SmolLM2-1.7B-Instruct to reproduce the +14.2pp headline.)
 bash scripts/run_train.sh Qwen/Qwen2.5-1.5B-Instruct
 
 # 3. Evaluate base vs. tuned, and chart it
