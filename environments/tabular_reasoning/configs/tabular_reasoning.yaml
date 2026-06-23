@@ -1,0 +1,24 @@
+# Drop-in NeMo Gym config for running the tabular_reasoning verifiers environment
+# via the `verifiers_agent`. Copy this into a NeMo Gym checkout at
+#   responses_api_agents/verifiers_agent/configs/tabular_reasoning.yaml
+# after installing this environment (see ../README.md). Mirrors the shape of
+# NeMo Gym's own responses_api_agents/verifiers_agent/configs/acereason-math.yaml.
+verifiers_agent:
+  responses_api_agents:
+    verifiers_agent:
+      entrypoint: app.py
+      domain: structured-data
+      description: tabular_reasoning -- verifiable multi-step reasoning over structured records (football box scores, invoices); shares its reward checker with the gridiron-grpo GRPO trainer.
+      value: Improve multi-step reasoning and exact answer extraction over structured/tabular data.
+      model_server:
+        type: responses_api_models
+        name: policy_model
+      model_name: ""
+      vf_env_id: tabular-reasoning
+      vf_env_args: {}
+      group_size: 1
+      max_concurrent_generation: -1
+      max_concurrent_scoring: -1
+      max_tokens: 2048
+      temperature: 1.0
+      top_p: 1.0

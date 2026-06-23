@@ -1,0 +1,50 @@
+# tabular_reasoning -- a Prime Intellect `verifiers` environment, packaged the
+# way the NeMo Gym `verifiers_agent` expects (a pip-installable module exposing
+# `load_environment`, discovered via `vf.load_environment("tabular-reasoning")`).
+#
+# A monorepo subpackage that *imports* the reward checker from the parent
+# `gridiron-grpo` package rather than copying it. It is intentionally NOT a
+# standalone Hub package -- it expects the parent's src/ to be importable (via
+# the in-tree path shim in tabular_reasoning.py, or by `pip install -e .` at the
+# repo root for an isolated venv). See README.md.
+[project]
+name = "tabular-reasoning"
+version = "0.1.0"
+description = "A verifiers / NeMo Gym environment for verifiable multi-step reasoning over structured records (synthetic football box scores and invoices), with a controllable compositional-difficulty ladder. Shares its reward checker with the gridiron-grpo GRPO trainer."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "Riel St. Amand" }]
+tags = [
+    "single-turn",
+    "rlvr",
+    "verifiable-rewards",
+    "structured-data",
+    "reasoning",
+    "train",
+    "eval",
+]
+dependencies = [
+    "verifiers>=0.1.8",
+    "datasets>=3.0.0",
+    # The reward checker, prompt format, and task generators are imported from
+    # the parent `gridiron-grpo` package (this repo's src/). It is deliberately
+    # not listed here as a PyPI dependency because it is unpublished and resolved
+    # locally: in the monorepo via tabular_reasoning.py's path shim, or
+    # `pip install -e .` at the repo root for a standalone venv.
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+include = ["tabular_reasoning.py", "README.md", "pyproject.toml"]
+
+[tool.hatch.build.targets.wheel]
+include = ["tabular_reasoning.py"]
+
+# Defaults for `vf-eval tabular-reasoning` (small, so a smoke eval is cheap).
+[tool.verifiers.eval]
+num_examples = 100
+rollouts_per_example = 4

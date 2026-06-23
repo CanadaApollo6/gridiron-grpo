@@ -130,6 +130,7 @@ synthetic data ──▶ verifiable reward ──▶ GRPO loop ──▶ tuned m
 | Eval harness     | `src/eval/evaluate.py`                       | Same correctness check as training → honest accuracy, by task type                        |
 | Reporting        | `src/eval/make_chart.py`, `make_hero.py`, `results_to_md.py` | The per-run before/after chart, the two-model hero figure, and the markdown table |
 | Agent wrapper    | `agent/`                                     | Wraps the tuned model as a runnable, framework-agnostic tool; includes the registration _pattern_ for NVIDIA's NeMo Agent Toolkit |
+| NeMo Gym env     | `environments/tabular_reasoning/`            | The same reward suite as a Prime Intellect [`verifiers`](https://github.com/PrimeIntellect-ai/verifiers) environment — the packaging NVIDIA [NeMo Gym](https://github.com/NVIDIA-NeMo/Gym) loads via `vf.load_environment("tabular-reasoning")`. Imports the _exact_ checker (no second copy); runs end-to-end on verifiers 0.1.14 (`environments/tabular_reasoning/tests`) |
 
 ## Make it yours
 
