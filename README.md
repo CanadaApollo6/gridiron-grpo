@@ -2,23 +2,13 @@
 
 **Teach a small language model to _reason_ over structured data — with reinforcement learning, on a single GPU, for the price of lunch.**
 
-**It reads like a one-afternoon tutorial — and it is one. It's also a controlled, cross-family study** of a single question: **when does RLVR (RL with verifiable rewards) actually teach a small model to reason over structured data, and when does it only sharpen what the base already had?** Across model families the answer is **base-dependent, not recipe-dependent** — on the _same_ task and recipe, GRPO lifts a weak base **+14.4pp** (SmolLM2-1.7B; **+21.4pp on real NFL games**, p<0.0001) but barely moves an already-capable one (**+0.9pp, ns**, Qwen2.5-1.5B), while a composite-arithmetic subtask walls _every_ model because no base ever samples it. A single-family study would have concluded the opposite — which is why this one runs several. The receipts — pass@k learnability gates, Wilson 95% CIs, paired McNemar tests, multi-seed runs, a second data domain, and a synthetic→real held-out eval — live in **[FINDINGS](FINDINGS.md)** (results) · **[EXPERIMENTS](EXPERIMENTS.md)** (design) · **[REVIEW](REVIEW.md)** (methodology audit) · **[JOURNEY](JOURNEY.md)** (the bug gauntlet → pivot).
+There's a real experiment under the tutorial. The question: when does RLVR (RL with verifiable rewards) actually teach a small model to reason over structured data, and when does it just surface what the base could already do? Here, **it's the base model that decides, not the recipe** — one GRPO run takes SmolLM2-1.7B from 5% to 19% on the synthetic eval (and 8% to 30% on _real_ NFL box scores), while barely touching Qwen2.5-1.5B, which was already good at the task. Run it on Qwen alone and you'd call RLVR a wash; on SmolLM2 alone, a breakthrough; neither holds up. And one subtask — reconstruct a team's points from the box score — stays at zero for every model, because the base never samples the right answer for RL to reinforce. The numbers, the design, an outside methodology audit, and the messy path here are in [FINDINGS](FINDINGS.md), [EXPERIMENTS](EXPERIMENTS.md), [REVIEW](REVIEW.md), and [JOURNEY](JOURNEY.md).
 
 Most "fine-tune an LLM" tutorials stop at supervised fine-tuning: show the model thousands of good answers and hope it imitates them. This repo does something more interesting and far less common in example code — **reinforcement learning with a verifiable reward**. The model generates its own attempts, each attempt is _checked against ground truth_, and the ones that got it right get reinforced. No human labeling. No reward model to train. Just: did you get the right answer, yes or no.
 
 The deeper point, and the reason this is worth your afternoon: when a model is bad at a task, the instinct is to reach for a bigger model. Often the better move is to _teach the one you have_ — with the right objective and a clean signal. This is a small, legible demonstration of that idea end to end.
 
 The domain is football (box scores, late-game situations) because verifiable sports questions are a perfect teaching sandbox — _"which player had the most total yards from scrimmage"_ has exactly one correct answer you can compute. But the pipeline is domain-agnostic. Swap the data generator and you've got a structured-data reasoning trainer for invoices, lab results, telemetry, anything with checkable answers.
-
-## What you'll learn
-
-By reading the code and running it once, you'll come away understanding:
-
-- **How GRPO actually works** — the RL method behind DeepSeek-R1 — without the math-paper overhead.
-- **Why verifiable rewards are a cheat code** — when your task has a checkable answer, you skip the single most expensive, fragile part of RLHF (the learned reward model).
-- **How to keep RL fine-tuning on one GPU** — LoRA, bf16, and vLLM-accelerated rollouts, with where the real bottleneck hides.
-- **How to evaluate honestly** — measuring accuracy _by task type_, and how to catch a model that's gaming your reward instead of actually improving.
-- **How to adapt it to your own domain** — the data layer is the only thing you need to touch.
 
 ## The result, in one glance
 
@@ -35,8 +25,7 @@ SmolLM2 nearly **quadruples** its verifiable accuracy — 119 answers flip from 
 
 **And it holds on _real_ NFL games.** Trained on synthetic, evaluated on real 2023 box scores (nflverse, n=509): SmolLM2 **+21.4pp** (8.2% → 29.7%, p<0.0001), Qwen flat (+0.0pp) — the same split, on a real distribution. (`src/data/build_real_eval.py`; single-seed preview, seed-averaged once the matrix lands.)
 
-<details>
-<summary><b>Where SmolLM2's gain comes from</b> — per-task breakdown (base → GRPO)</summary>
+**Where the gain comes from** — and where it doesn't (per task, base → GRPO):
 
 | Task | What it tests | Base | GRPO | Δ (pp) |
 | --- | --- | ---: | ---: | ---: |
@@ -49,9 +38,25 @@ SmolLM2 nearly **quadruples** its verifiable accuracy — 119 answers flip from 
 
 The flat `team_points` row is the honest other half of the story: composite arithmetic the base _never_ samples, so GRPO has nothing to reinforce. Gains track base pass@k headroom — full CIs, the paired McNemar test, and the multi-seed × multi-recipe matrix are in [`FINDINGS.md`](FINDINGS.md).
 
-</details>
-
 **Runs:** GRPO + LoRA (r=16) · group size 8 · 1,200 steps · seed 7 · naive-GRPO recipe (TRL defaults) · SmolLM2-1.7B on 1× L40S, Qwen2.5-1.5B on 1× A100 80GB · **~$5–15 each** on [HF Jobs](https://huggingface.co/docs/hub/jobs). Regenerate any run's table with `python src/eval/results_to_md.py <baseline>.json <grpo>.json`, and this figure with `python src/eval/make_hero.py`.
+
+## What you'll learn
+
+By reading the code and running it once, you'll come away understanding:
+
+- **How GRPO actually works** — the RL method behind DeepSeek-R1 — without the math-paper overhead.
+- **Why verifiable rewards are a cheat code** — when your task has a checkable answer, you skip the single most expensive, fragile part of RLHF (the learned reward model).
+- **How to keep RL fine-tuning on one GPU** — LoRA, bf16, and vLLM-accelerated rollouts, with where the real bottleneck hides.
+- **How to evaluate honestly** — accuracy _by task type_, against a best-constant floor, with Wilson CIs and a paired McNemar test — and how to catch a model gaming your reward instead of improving.
+- **How to adapt it to your own domain** — the data layer is the only file you touch (there's a second one, synthetic invoices, in the repo).
+
+## What it answers
+
+The study running under the tutorial — the cross-family question, in three parts:
+
+- **Does RLVR teach, or just amplify?** New capability vs. sharpened sampling — settled by measuring base pass@k _before_ training (the learnability gate).
+- **Is it the model or the recipe?** The same task across families (SmolLM2, Qwen2.5, OLMo-2, Llama-3.2), so one model's result can't pass for a general law.
+- **Where does it stall?** A composite-arithmetic task that walls every base — the ceiling RL can't lift when the answer is never sampled.
 
 ## Quickstart
 
@@ -128,9 +133,9 @@ synthetic data ──▶ verifiable reward ──▶ GRPO loop ──▶ tuned m
 
 ## Make it yours
 
-The whole point is that you fork this and point it at _your_ problem. The only file you need to change is the data layer:
+The whole point is that you fork this and point it at _your_ problem. The only file you need to change is the data layer — and there's a **worked second domain in the repo to copy from**: synthetic **invoices** (`src/data/invoices_*.py`; `build_dataset.py --domain invoices`), same `Sample` schema, scored by the same unchanged rewards. Football proves the idea; invoices proves it isn't _about_ football.
 
-1. Replace the generators in `src/data/` with your domain — invoices, support tickets, sensor readings, anything with a checkable answer.
+1. Replace the generators in `src/data/` with your domain — support tickets, lab results, sensor readings, anything with a checkable answer.
 2. Make sure each example yields a `ground_truth` and an `answer_type` (`numeric`, `name`, `set`, or `decision` — or add your own and extend `verifiers.py`).
 3. Everything downstream — reward, GRPO loop, eval, charts — works unchanged.
 
