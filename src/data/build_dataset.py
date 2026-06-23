@@ -11,6 +11,14 @@ Each row:
 
 Usage:
   python src/data/build_dataset.py --n_train 8000 --n_eval 800 --seed 7 --out data_out
+  python src/data/build_dataset.py --domain invoices --n_train 8000 --n_eval 800 --out data_out
+
+Domains: the pipeline is domain-agnostic -- the data layer is the only thing
+that changes. Each domain exposes its own `sample_one(rng)` (a single source of
+truth for that domain's ALL_TASKS); `--domain` just picks which one to draw
+from. Everything downstream (prompt format, rewards, eval) is shared and
+UNCHANGED. Default is football, and the football output is byte-identical to
+before this flag existed.
 """
 
 import argparse
@@ -20,11 +28,22 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from data.tasks import sample_one  # noqa: E402
 from prompts import build_prompt  # noqa: E402
 
 
-def build(n: int, rng: random.Random) -> list[dict]:
+def get_sample_one(domain: str):
+    """Return the domain's `sample_one` factory. Each domain keeps a single
+    source of truth for its ALL_TASKS / sample_one; this just dispatches."""
+    if domain == "football":
+        from data.tasks import sample_one  # noqa: E402
+        return sample_one
+    if domain == "invoices":
+        from data.invoices_tasks import sample_one  # noqa: E402
+        return sample_one
+    raise ValueError(f"unknown domain: {domain!r} (expected 'football' or 'invoices')")
+
+
+def build(n: int, rng: random.Random, sample_one) -> list[dict]:
     rows = []
     for _ in range(n):
         s = sample_one(rng)
@@ -47,23 +66,28 @@ def write_jsonl(rows: list[dict], path: Path) -> None:
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--domain", type=str, default="football",
+                    choices=["football", "invoices"],
+                    help="which data layer to draw from (default: football)")
     ap.add_argument("--n_train", type=int, default=8000)
     ap.add_argument("--n_eval", type=int, default=800)
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--out", type=str, default="data_out")
     args = ap.parse_args()
 
+    sample_one = get_sample_one(args.domain)
+
     out = Path(args.out)
     # separate RNG streams so eval is disjoint and reproducible
-    train = build(args.n_train, random.Random(args.seed))
-    eval_ = build(args.n_eval, random.Random(args.seed + 10_000))
+    train = build(args.n_train, random.Random(args.seed), sample_one)
+    eval_ = build(args.n_eval, random.Random(args.seed + 10_000), sample_one)
 
     write_jsonl(train, out / "train.jsonl")
     write_jsonl(eval_, out / "eval.jsonl")
 
     from collections import Counter
     dist = Counter(r["kind"] for r in eval_)
-    print(f"wrote {len(train)} train, {len(eval_)} eval to {out}/")
+    print(f"wrote {len(train)} train, {len(eval_)} eval to {out}/ (domain={args.domain})")
     print("eval kind distribution:", dict(dist))
 
 
