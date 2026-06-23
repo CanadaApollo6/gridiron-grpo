@@ -228,3 +228,35 @@ saturation** (high base pass@1), not a training artifact, so a re-run only repro
 and recipe: GRPO amplifies the weak base (SmolLM2-1.7B **+14.4pp, p<0.001**) and barely moves the
 saturated one (Qwen2.5-1.5B +0.9pp, ns) — certified-clean both. "Terminating Qwen re-run" is struck
 from the open-polish list; remaining polish is just **seeds** for CIs on the SmolLM2 cell.
+
+---
+
+## 2026-06-23 — Train synthetic, eval REAL: the SmolLM2 gain transfers (and grows)
+
+First real-data eval (`src/data/build_real_eval.py`): the SAME verifiable tasks, but the box scores
+are **real nflverse weekly stat lines** (2023 REG wk 1–4, n=509), rendered byte-identically to the
+synthetic format. Models train on synthetic; we evaluate on real games. Single seed (R0, s7) on the
+existing adapters — a **preview**; the multi-seed matrix will seed-average it.
+
+| Model | base | GRPO-R0 | Δ | McNemar |
+| --- | ---: | ---: | ---: | --- |
+| **SmolLM2-1.7B** | 8.2% | **29.7%** | **+21.4pp** | p<0.0001, `***` (112 gains / 3 regressions) |
+| Qwen2.5-1.5B (saturated) | 45.6% | 45.6% | +0.0pp | p=1.0, ns (14 / 14) |
+
+Per-kind (SmolLM2): `hundred_yd_rec` 0.0→58.6 (`***`), `most_scrimmage` 21.6→36.0 (`***`),
+`total_tds` 0.0→10.9 (`***`), `scrimmage_total` 11.7→13.3 (ns).
+
+**Reads.**
+
+1. **The headline transfers to real games** — SmolLM2 +21.4pp (`***`), even *larger* than synthetic
+   (+14.4), while saturated Qwen stays flat (+0.0). The amplify-weak-not-saturated split holds on a
+   real distribution — the strongest external-validity evidence so far.
+2. **Why larger:** `hundred_yd_rec` is much cleaner on real games (0→58.6 vs synthetic 0→20.3) — real
+   boxes have fewer, better-separated 100-yd receivers. The synthetic generator is the *harder* test
+   (base is lower on synthetic: SmolLM2 5.0% vs real 8.2%; Qwen 29.4% vs real 45.6%).
+3. **The arithmetic wall persists on real too:** `scrimmage_total` (add two fields) +1.6 (ns) — GRPO
+   can't teach what the base never samples, real or synthetic.
+
+`team_points` and `td_or_fg` are omitted on real data (not reconstructable from weekly skill rows /
+no game-state — see `build_real_eval.py`). Next: re-run across all 3 seeds once the matrix lands for
+a seed-averaged real number + CI.

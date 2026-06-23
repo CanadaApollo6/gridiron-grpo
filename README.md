@@ -31,6 +31,8 @@ By reading the code and running it once, you'll come away understanding:
 
 SmolLM2 nearly **quadruples** its verifiable accuracy — 119 answers flip from wrong to right, just 4 the other way — while Qwen, already ~29% off the shelf, has almost nothing left to reinforce. Same trainer, same data, same 1,200 steps. **The lesson: when a model is bad at a task, the better move is often the right _objective_ on a model with headroom, not a bigger model.**
 
+**And it holds on _real_ NFL games.** Trained on synthetic, evaluated on real 2023 box scores (nflverse, n=509): SmolLM2 **+21.4pp** (8.2% → 29.7%, p<0.0001), Qwen flat (+0.0pp) — the same split, on a real distribution. (`src/data/build_real_eval.py`; single-seed preview, seed-averaged once the matrix lands.)
+
 <details>
 <summary><b>Where SmolLM2's gain comes from</b> — per-task breakdown (base → GRPO)</summary>
 
