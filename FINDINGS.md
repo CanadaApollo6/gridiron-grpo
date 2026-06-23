@@ -198,4 +198,33 @@ termination fixed + a re-run.
 
 **Status:** headline (headroom-gated amplification + invariant `team_points` wall + confound) is
 solid from multiple angles. Remaining for publishable numbers: **seeds** on the SmolLM2 headline
-cell. Optional polish: same-regime R0/R1 and a terminating Qwen re-run.
+cell. Optional polish: same-regime R0/R1 (the Qwen re-run is no longer needed — see 2026-06-23).
+
+---
+
+## 2026-06-23 — Qwen termination resolved: `clipped_ratio=1.0` is a colocate telemetry artifact (no re-run needed)
+
+The open Qwen caveat ("an airtight Qwen cell needs the termination fixed + a re-run") is **resolved
+without a re-run.** The EOS stop-token fix in `train_grpo.py` already works for Qwen; the
+`clipped_ratio=1.0` that looked like a degenerate long-completion regime is the known-unreliable
+vLLM **colocate metric**, not real non-termination.
+
+**Evidence.**
+
+1. **Plumbing.** TRL 0.19.0's colocate path merges `args.generation_kwargs` — our
+   `stop_token_ids=[151645, 151643]` (`<|im_end|>`, `<|endoftext|>`) — straight into the vLLM
+   `SamplingParams` (`trl/trainer/grpo_trainer.py` ~L1117–1128). vLLM honors `stop_token_ids`.
+2. **Direct measurement** on real training prompts with that exact `SamplingParams`:
+   - Qwen2.5-**0.5B**: 16/16 completions stop at `<|im_end|>`, mean 3.9 tok, 0 clipped.
+   - Qwen2.5-**1.5B** (`max_tokens=384`, room to reason): **24/24 stop at `<|im_end|>`**, mean
+     76.8 tok (max 206), **0 clipped** (`finish_reason="stop"` for every one).
+
+So Qwen rollouts terminate; `clipped_ratio=1.0` is telemetry noise (consistent with the earlier
+caveat that trusted runs show it too, with `mean_length` well below the cap). The validated
+Qwen-1.5B cell (29.4% → 30.2%, **+0.9pp, ns**) was **already clean**; its flatness is **real
+saturation** (high base pass@1), not a training artifact, so a re-run only reproduces +0.9pp.
+
+**Consequence for the headline.** The README hero is now a **two-model** result on the same task
+and recipe: GRPO amplifies the weak base (SmolLM2-1.7B **+14.4pp, p<0.001**) and barely moves the
+saturated one (Qwen2.5-1.5B +0.9pp, ns) — certified-clean both. "Terminating Qwen re-run" is struck
+from the open-polish list; remaining polish is just **seeds** for CIs on the SmolLM2 cell.
