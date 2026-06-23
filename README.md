@@ -20,23 +20,34 @@ By reading the code and running it once, you'll come away understanding:
 
 ## The result, in one glance
 
-> _Fill in after your run — `python src/eval/results_to_md.py results/baseline.json results/grpo.json` prints the table; the run metadata is your reproducibility receipt._
+**RLVR amplifies a weak base; it can't conjure ability that isn't there.** On the _same_ held-out 800-question eval, with the _same_ GRPO recipe, the gain lands wherever the base has reachable headroom — a near-4× lift on a weak base, a wash on an already-capable one:
 
-**‹one-line takeaway: base → tuned overall accuracy, the gain, and the standout task›**
+![GRPO base vs. tuned — SmolLM2 leaps; the saturated Qwen barely moves](assets/hero.png)
 
-![base vs. GRPO-tuned](results/before_after.png)
+| Model | Base | GRPO-tuned | Δ | McNemar |
+| --- | ---: | ---: | ---: | :--- |
+| **SmolLM2-1.7B** — weak base, room to learn | 5.0% | **19.4%** | **+14.4pp** | `***`, p<0.001 |
+| Qwen2.5-1.5B — already-capable base (control) | 29.4% | 30.2% | +0.9pp | ns, p=0.38 |
 
-| Task            | What it tests                          |  Base |  GRPO | Δ (pp) |
-| --------------- | -------------------------------------- | ----: | ----: | -----: |
-| **Overall**     | —                                      | `__%` | `__%` |  `+__` |
-| scrimmage_total | single-player rush + rec sum           | `__%` | `__%` |  `+__` |
-| team_points     | players' TDs (x6) + the FG/XP/2pt line | `__%` | `__%` |  `+__` |
-| total_tds       | sum touchdowns across players          | `__%` | `__%` |  `+__` |
-| most_scrimmage  | argmax over the table                  | `__%` | `__%` |  `+__` |
-| hundred_yd_rec  | set membership (≥100 rec yds)          | `__%` | `__%` |  `+__` |
-| td_or_fg        | rule-based decision                    | `__%` | `__%` |  `+__` |
+SmolLM2 nearly **quadruples** its verifiable accuracy — 119 answers flip from wrong to right, just 4 the other way — while Qwen, already ~29% off the shelf, has almost nothing left to reinforce. Same trainer, same data, same 1,200 steps. **The lesson: when a model is bad at a task, the better move is often the right _objective_ on a model with headroom, not a bigger model.**
 
-**Trained on:** `Qwen/Qwen2.5-1.5B-Instruct` · GRPO + LoRA (r=16) · `__` steps · 1× H100 · ~`__h` · **~$`__`**
+<details>
+<summary><b>Where SmolLM2's gain comes from</b> — per-task breakdown (base → GRPO)</summary>
+
+| Task | What it tests | Base | GRPO | Δ (pp) |
+| --- | --- | ---: | ---: | ---: |
+| `td_or_fg` | rule-based decision | 0.0% | 47.0% | **+47.0** |
+| `hundred_yd_rec` | set membership (≥100 rec yds) | 0.0% | 20.3% | +20.3 |
+| `total_tds` | sum touchdowns across players | 0.0% | 10.0% | +10.0 |
+| `most_scrimmage` | argmax over the table | 24.4% | 29.0% | +4.6 |
+| `scrimmage_total` | single-player rush + rec sum | 7.5% | 10.3% | +2.8 |
+| `team_points` | players' TDs (×6) + the FG/XP/2pt line | 0.0% | 0.0% | +0.0 |
+
+The flat `team_points` row is the honest other half of the story: composite arithmetic the base _never_ samples, so GRPO has nothing to reinforce. Gains track base pass@k headroom — full CIs, the paired McNemar test, and the multi-seed × multi-recipe matrix are in [`FINDINGS.md`](FINDINGS.md).
+
+</details>
+
+**Runs:** GRPO + LoRA (r=16) · group size 8 · 1,200 steps · seed 7 · naive-GRPO recipe (TRL defaults) · SmolLM2-1.7B on 1× L40S, Qwen2.5-1.5B on 1× A100 80GB · **~$5–15 each** on [HF Jobs](https://huggingface.co/docs/hub/jobs). Regenerate any run's table with `python src/eval/results_to_md.py <baseline>.json <grpo>.json`, and this figure with `python src/eval/make_hero.py`.
 
 ## Quickstart
 
@@ -48,7 +59,8 @@ pip install -r requirements.txt
 # 1. Generate verifiable training + eval data (synthetic, seeded, no downloads)
 python src/data/build_dataset.py --n_train 8000 --n_eval 800 --seed 7 --out data_out
 
-# 2. Train — runs a 20-step smoke test first, then the real run
+# 2. Train — runs a 20-step smoke test first, then the real run.
+#    (Swap in HuggingFaceTB/SmolLM2-1.7B-Instruct to reproduce the +14.4pp headline.)
 bash scripts/run_train.sh Qwen/Qwen2.5-1.5B-Instruct
 
 # 3. Evaluate base vs. tuned, and chart it
@@ -107,8 +119,8 @@ synthetic data ──▶ verifiable reward ──▶ GRPO loop ──▶ tuned m
 | Reward functions | `src/rewards/verifiers.py`                   | correctness + format, the contract the model is trained against                           |
 | Training         | `src/train_grpo.py`                          | TRL `GRPOTrainer` + LoRA + vLLM rollouts                                                  |
 | Eval harness     | `src/eval/evaluate.py`                       | Same correctness check as training → honest accuracy, by task type                        |
-| Reporting        | `src/eval/make_chart.py`, `results_to_md.py` | The before/after chart and the markdown table                                             |
-| Agent wrapper    | `agent/`                                     | Wraps the tuned model as a callable tool (example integration: NVIDIA NeMo Agent Toolkit) |
+| Reporting        | `src/eval/make_chart.py`, `make_hero.py`, `results_to_md.py` | The per-run before/after chart, the two-model hero figure, and the markdown table |
+| Agent wrapper    | `agent/`                                     | Wraps the tuned model as a runnable, framework-agnostic tool; includes the registration _pattern_ for NVIDIA's NeMo Agent Toolkit |
 
 ## Make it yours
 

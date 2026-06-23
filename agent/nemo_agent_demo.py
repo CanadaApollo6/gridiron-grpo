@@ -1,13 +1,16 @@
-"""Agent layer.
+"""Agent layer: the tuned model as a callable tool.
 
-The trained model is wrapped as a single, well-defined tool:
-`reason_over_structured_data(context, question) -> answer`. This `ReasoningTool`
-is real and runnable on its own. The final step -- registering it as a tool
-inside NVIDIA's NeMo Agent Toolkit so an agent can call it -- is marked below.
+`ReasoningTool` wraps the GRPO-tuned model as one well-defined function,
+`reason_over_structured_data(context, question) -> answer`. It is real and
+runnable on its own -- see the `__main__` demo at the bottom (load the model,
+ask a box-score question, get a parsed answer back).
 
-Why this matters for the NVIDIA story: it demonstrates the trained model inside
-*their* agent framework (NeMo Agent Toolkit is named in the role), turning a
-fine-tuned model into a callable agent capability.
+The tool is framework-agnostic. The block at the end of this file shows the
+*pattern* for registering it inside NVIDIA's NeMo Agent Toolkit so an agent can
+call it. Keeping the claim honest: what actually runs here is the ReasoningTool;
+the NeMo Agent Toolkit registration is a documented integration sketch, not a
+shipped, wired-up integration -- pinning it to an installed NeMo Agent Toolkit
+version and registering the function is the remaining step.
 """
 
 import sys
@@ -46,7 +49,7 @@ class ReasoningTool:
         return extract_answer(out) or out
 
 
-# --- NeMo Agent Toolkit integration point ---------------------------------
+# --- NeMo Agent Toolkit integration (pattern; not wired in this repo) ------
 # Register ReasoningTool.run as a tool/function in NeMo Agent Toolkit so an
 # agent can invoke it. Pin to the NeMo Agent Toolkit version you install and
 # follow its current tool-registration API (function decorator + YAML workflow

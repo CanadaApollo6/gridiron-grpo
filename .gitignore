@@ -9,3 +9,7 @@ results/
 wandb/
 .vscode/
 .claude/
+runs_dl/
+
+# Committed figures referenced by the README (exempt from the *.png rule above)
+!assets/*.png
