@@ -1,0 +1,77 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gridiron-grpo"
+version = "0.1.0"
+description = "GRPO + verifiable rewards: teaching a small LM to reason over structured data on one GPU — a controlled cross-family study of when RLVR helps."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "Riel St. Amand" }]
+keywords = [
+    "grpo", "rlvr", "reinforcement-learning", "verifiable-rewards",
+    "rlhf", "post-training", "trl", "vllm",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Operating System :: POSIX :: Linux",
+]
+
+# Runtime deps for the trainer + model-eval, with LOWER BOUNDS on the
+# load-bearing, drift-prone ones (TRL's GRPO API — and the vLLM/transformers/peft
+# it rides on — move between releases; see README "Caveats"). The lower bound is
+# what saves a reviewer from a too-old, broken install. requirements.txt keeps
+# the exact, tested `==` pins as a lockfile.
+dependencies = [
+    "torch>=2.6",
+    "transformers>=4.51",
+    "trl>=0.19",
+    "peft>=0.15",
+    "datasets>=3.5",
+    "accelerate>=1.6",
+    "vllm>=0.8.5",
+    "huggingface_hub[hf_transfer]>=0.30",
+    "matplotlib>=3.10",
+]
+
+[project.optional-dependencies]
+# Test/CI deps, kept out of the runtime env so CI (and the NeMo-Gym env) install
+# cleanly without dragging pytest/ruff into production.
+dev = ["pytest>=8", "ruff>=0.6"]
+# Real-data held-out eval (src/data/build_real_eval.py). nfl_data_py pins an old
+# pandas that won't build on this stack — install it `--no-deps` (we reuse the
+# pinned pandas/pyarrow); see the note in requirements.txt.
+real-eval = ["nfl_data_py"]
+
+[project.urls]
+Homepage = "https://github.com/CanadaApollo6/gridiron-grpo"
+Findings = "https://github.com/CanadaApollo6/gridiron-grpo/blob/main/FINDINGS.md"
+
+# --- build: the flat src/ layout (top-level modules + rewards/data/eval pkgs) ---
+[tool.setuptools]
+package-dir = { "" = "src" }
+py-modules = ["prompts", "model_utils", "train_grpo"]
+packages = ["rewards", "data", "eval"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "B", "UP"]
+ignore = [
+    "E402",  # modules intentionally insert the repo root on sys.path before sibling imports
+    "E501",  # line length is owned by `ruff format`, not the linter
+    "E741",  # a couple legacy single-char names (e.g. `l`); tighten in a dedicated lint pass
+    "B007",  # one legacy unused loop var; tighten in a dedicated lint pass
+]
