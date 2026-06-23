@@ -124,10 +124,24 @@ def main():
     # which then lets mask_truncated zero the whole batch (grad_norm=0). Eval via HF
     # .generate already stops fine; this fixes the TRAINING/vLLM path. General across
     # families (reads each model's declared EOS ids).
-    _eos = getattr(model.generation_config, "eos_token_id", None) or tok.eos_token_id
-    if isinstance(_eos, int):
-        _eos = [_eos]
-    gen_kwargs = {"stop_token_ids": list(_eos)} if _eos else {}
+    # Collect EVERY plausible stop id: the model's declared EOS list, the tokenizer
+    # EOS, and known chat-turn terminators that some configs omit from eos_token_id
+    # (Qwen's <|im_end|>, Llama's <|eot_id|>, ...). Passing all of them to vLLM makes
+    # rollouts terminate; the narrower generation_config-only version missed <|im_end|>
+    # on Qwen2.5-Instruct, so its rollouts ran to the cap.
+    _eos = set()
+    _gc = getattr(model.generation_config, "eos_token_id", None)
+    if isinstance(_gc, int):
+        _eos.add(_gc)
+    elif _gc:
+        _eos.update(_gc)
+    if tok.eos_token_id is not None:
+        _eos.add(tok.eos_token_id)
+    for _t in ("<|im_end|>", "<|eot_id|>", "<|end|>", "<end_of_turn>", "<|endoftext|>"):
+        _tid = tok.convert_tokens_to_ids(_t)
+        if isinstance(_tid, int) and _tid >= 0 and _tid != tok.unk_token_id:
+            _eos.add(_tid)
+    gen_kwargs = {"stop_token_ids": sorted(_eos)} if _eos else {}
     print(f"vLLM stop_token_ids = {gen_kwargs.get('stop_token_ids')}")
 
     desired = dict(

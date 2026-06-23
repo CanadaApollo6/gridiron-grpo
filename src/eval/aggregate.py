@@ -128,9 +128,13 @@ def _overall_matrix_md(long_rows: list[dict]) -> str:
             if not rows:
                 cells.append("·")
             else:
-                d = statistics.mean(x["delta_pp"] for x in rows)
-                sig = rows[0]["sig"] if len(rows) == 1 else f"{len(rows)}seed"
-                cells.append(f"{d:+.1f} ({sig})")
+                deltas = [x["delta_pp"] for x in rows]
+                d = statistics.mean(deltas)
+                if len(rows) == 1:
+                    cells.append(f"{d:+.1f} ({rows[0]['sig']})")
+                else:
+                    sd = statistics.stdev(deltas)
+                    cells.append(f"{d:+.1f}±{sd:.1f} (n={len(rows)})")
         L.append(f"| {f} | " + " | ".join(cells) + " |")
     L.append("")
     L.append("_Cell = mean Δpp across seeds; (sig)=McNemar for a single seed, "

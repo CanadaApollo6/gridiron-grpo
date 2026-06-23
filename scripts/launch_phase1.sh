@@ -25,19 +25,24 @@ FIX="-e LOSS_TYPE=dr_grpo -e NO_SCALE_REWARDS=1"                       # R1 = Dr
 DAPO="$FIX -e MASK_TRUNCATED=1 -e EPSILON_HIGH=0.28"                   # R2 = R1 + DAPO stability
 REPOS="gg-smollm2-r0-s7 gg-smollm2-r1-s7 gg-qwen15b-r0-s7 gg-qwen15b-r1-s7"
 
+S="${SEED:-7}"
 case "${1:-help}" in
   smoke)   job "-e SMOKE_ONLY=1 -e MODEL=$SMOL $FIX" l40sx1 1h ;;
-  smol-r0) job "-e MODEL=$SMOL -e REPO_NAME=gg-smollm2-r0-s7" ;;          # R0 = TRL defaults (bnpo, beta .04)
-  smol-r1) job "-e MODEL=$SMOL -e REPO_NAME=gg-smollm2-r1-s7 $FIX" ;;
-  qwen-r0) job "-e MODEL=$QWEN -e REPO_NAME=gg-qwen15b-r0-s7" a100-large 4h ;;   # 152K vocab -> needs 80GB
-  qwen-r1) job "-e MODEL=$QWEN -e REPO_NAME=gg-qwen15b-r1-s7 $FIX" a100-large 4h ;;
+  smol-r0) job "-e MODEL=$SMOL -e REPO_NAME=gg-smollm2-r0-s$S -e SEED=$S" ;;          # R0 = TRL defaults (bnpo, beta .04)
+  smol-r1) job "-e MODEL=$SMOL -e REPO_NAME=gg-smollm2-r1-s$S -e SEED=$S $FIX" ;;
+  qwen-r0) job "-e MODEL=$QWEN -e REPO_NAME=gg-qwen15b-r0-s$S -e SEED=$S" a100-large 4h ;;   # 152K vocab -> needs 80GB
+  qwen-r1) job "-e MODEL=$QWEN -e REPO_NAME=gg-qwen15b-r1-s$S -e SEED=$S $FIX" a100-large 4h ;;
   qwen-smoke) job "-e SMOKE_ONLY=1 -e MODEL=$QWEN $FIX" a100-large 1h ;;   # validate EOS fix on Qwen (cents)
-  smol-r2) job "-e MODEL=$SMOL -e REPO_NAME=gg-smollm2-r2-s7 $DAPO" ;;
-  qwen-r2) job "-e MODEL=$QWEN -e REPO_NAME=gg-qwen15b-r2-s7 $DAPO" a100-large 4h ;;
+  smol-r2) job "-e MODEL=$SMOL -e REPO_NAME=gg-smollm2-r2-s$S -e SEED=$S $DAPO" ;;
+  qwen-r2) job "-e MODEL=$QWEN -e REPO_NAME=gg-qwen15b-r2-s$S -e SEED=$S $DAPO" a100-large 4h ;;
   dl)
     : "${NS:?set NS: export NS=\$(python -c 'from huggingface_hub import whoami; print(whoami()["name"])')}"
     mkdir -p runs_dl
-    for r in $REPOS; do uvx --from huggingface_hub hf download "$NS/$r" --local-dir "runs_dl/$r"; done
+    for f in smollm2-r0 smollm2-r1 qwen15b-r0 qwen15b-r1; do
+      for s in ${SEEDS:-7}; do r="gg-$f-s$s"
+        uvx --from huggingface_hub hf download "$NS/$r" --local-dir "runs_dl/$r" 2>/dev/null || echo "skip $r (not found)"
+      done
+    done
     python src/eval/aggregate.py --out results runs_dl/*/ ;;
   *) sed -n '2,16p' "$0" ;;
 esac
