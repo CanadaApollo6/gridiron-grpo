@@ -19,3 +19,7 @@ huggingface_hub[hf_transfer]==0.30.2   # fast model/result uploads from Jobs
 # Optional, not installed by default:
 #   flash-attn>=2.6     # auto-detected; falls back to sdpa (src/model_utils.py)
 #   bitsandbytes>=0.43  # only if you switch LoRA -> QLoRA
+#   nfl_data_py         # REAL-data eval only (src/data/build_real_eval.py).
+#                       # Its pandas==1.5.3 pin fails to build on this stack, so
+#                       # install without deps (we reuse the pinned pandas/pyarrow):
+#                       #   uv pip install --no-deps nfl_data_py appdirs
