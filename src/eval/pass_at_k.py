@@ -28,19 +28,20 @@ from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from eval.stats import pass_at_k  # noqa: E402
 from prompts import extract_answer  # noqa: E402
 from rewards.verifiers import _check  # noqa: E402
-from eval.stats import pass_at_k  # noqa: E402
 
 
 # ---- pure core (unit-testable without a model) ----------------------------
-def passk_summary(rows: list[dict], samples_per_row: list[list[str]],
-                  ks=(1, 8, 64)) -> dict:
+def passk_summary(rows: list[dict], samples_per_row: list[list[str]], ks=(1, 8, 64)) -> dict:
     per_kind_c = defaultdict(list)
     overall = []
-    for r, samples in zip(rows, samples_per_row):
+    for r, samples in zip(rows, samples_per_row, strict=False):
         n = len(samples)
-        c = sum(1 for s in samples if _check(extract_answer(s), r["ground_truth"], r["answer_type"]))
+        c = sum(
+            1 for s in samples if _check(extract_answer(s), r["ground_truth"], r["answer_type"])
+        )
         per_kind_c[r["kind"]].append((n, c))
         overall.append((n, c))
 
@@ -57,12 +58,14 @@ def passk_summary(rows: list[dict], samples_per_row: list[list[str]],
 
 
 # ---- GPU sampling path (chunked for bounded VRAM; prints progress) ---------
-def sample_completions(model, tok, prompts, n_samples, temperature, max_new_tokens,
-                       gen_batch=16, progress=True):
+def sample_completions(
+    model, tok, prompts, n_samples, temperature, max_new_tokens, gen_batch=16, progress=True
+):
     """Generate n_samples completions per prompt, <= gen_batch sequences in flight.
     Prints per-prompt progress with average generated length (watch for it pinning
     at max_new_tokens = rambling) and a running ETA."""
     import torch
+
     out = []
     n_prompts = len(prompts)
     t0 = time.time()
@@ -70,15 +73,22 @@ def sample_completions(model, tok, prompts, n_samples, temperature, max_new_toke
     with torch.no_grad():
         for i, p in enumerate(prompts):
             rendered = tok.apply_chat_template(p, tokenize=False, add_generation_prompt=True)
-            enc = tok([rendered], return_tensors="pt", padding=True, truncation=True,
-                      max_length=2048).to(model.device)
+            enc = tok(
+                [rendered], return_tensors="pt", padding=True, truncation=True, max_length=2048
+            ).to(model.device)
             start = enc["input_ids"].shape[1]
             samples, gen_lens, remaining = [], [], n_samples
             while remaining > 0:
                 k = min(gen_batch, remaining)
-                gen = model.generate(**enc, max_new_tokens=max_new_tokens, do_sample=True,
-                                     temperature=temperature, top_p=1.0,
-                                     num_return_sequences=k, pad_token_id=tok.pad_token_id)
+                gen = model.generate(
+                    **enc,
+                    max_new_tokens=max_new_tokens,
+                    do_sample=True,
+                    temperature=temperature,
+                    top_p=1.0,
+                    num_return_sequences=k,
+                    pad_token_id=tok.pad_token_id,
+                )
                 for s in range(k):
                     new = gen[s][start:]
                     # generated length = up to first EOS, else full (rambled to cap)
@@ -93,9 +103,12 @@ def sample_completions(model, tok, prompts, n_samples, temperature, max_new_toke
                 el = time.time() - t0
                 eta = (el / done) * (n_prompts - done)
                 avg_len = sum(gen_lens) / len(gen_lens)
-                print(f"[passk] {done}/{n_prompts} prompts | avg_len={avg_len:.0f}tok"
-                      f"{' (CAP-bound!)' if avg_len > 0.9 * max_new_tokens else ''} | "
-                      f"elapsed {el/60:.1f}m | eta ~{eta/60:.1f}m", flush=True)
+                print(
+                    f"[passk] {done}/{n_prompts} prompts | avg_len={avg_len:.0f}tok"
+                    f"{' (CAP-bound!)' if avg_len > 0.9 * max_new_tokens else ''} | "
+                    f"elapsed {el / 60:.1f}m | eta ~{eta / 60:.1f}m",
+                    flush=True,
+                )
     return out
 
 
@@ -107,31 +120,61 @@ def main():
     ap.add_argument("--label", required=True)
     ap.add_argument("--out", default="results")
     ap.add_argument("--n_samples", type=int, default=64)
-    ap.add_argument("--gen_batch", type=int, default=16,
-                    help="sequences generated at once (caps VRAM). 16 fits ~10GB for 1-1.7B.")
+    ap.add_argument(
+        "--gen_batch",
+        type=int,
+        default=16,
+        help="sequences generated at once (caps VRAM). 16 fits ~10GB for 1-1.7B.",
+    )
     ap.add_argument("--temperature", type=float, default=0.9)
-    ap.add_argument("--max_new_tokens", type=int, default=512,
-                    help="cap on generated tokens. These tasks have short answers; 256-512 "
-                         "is plenty and keeps the slow-tail bounded. 1024 can be very slow.")
-    ap.add_argument("--limit", type=int, default=None,
-                    help="evaluate only the first N rows (pass@64 is costly).")
+    ap.add_argument(
+        "--max_new_tokens",
+        type=int,
+        default=512,
+        help="cap on generated tokens. These tasks have short answers; 256-512 "
+        "is plenty and keeps the slow-tail bounded. 1024 can be very slow.",
+    )
+    ap.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="evaluate only the first N rows (pass@64 is costly).",
+    )
     ap.add_argument("--quiet", action="store_true", help="suppress per-prompt progress")
     args = ap.parse_args()
 
     from eval.evaluate import load_model
+
     rows = [json.loads(l) for l in open(args.data)]
     if args.limit:
-        rows = rows[:args.limit]
-    print(f"[passk] {args.model} | {len(rows)} prompts x {args.n_samples} samples "
-          f"| max_new={args.max_new_tokens} gen_batch={args.gen_batch}", flush=True)
+        rows = rows[: args.limit]
+    print(
+        f"[passk] {args.model} | {len(rows)} prompts x {args.n_samples} samples "
+        f"| max_new={args.max_new_tokens} gen_batch={args.gen_batch}",
+        flush=True,
+    )
     model, tok = load_model(args.model, args.adapter)
-    samples = sample_completions(model, tok, [r["prompt"] for r in rows],
-                                 args.n_samples, args.temperature, args.max_new_tokens,
-                                 gen_batch=args.gen_batch, progress=not args.quiet)
+    samples = sample_completions(
+        model,
+        tok,
+        [r["prompt"] for r in rows],
+        args.n_samples,
+        args.temperature,
+        args.max_new_tokens,
+        gen_batch=args.gen_batch,
+        progress=not args.quiet,
+    )
     result = passk_summary(rows, samples)
-    result.update({"label": args.label, "model": args.model, "adapter": args.adapter,
-                   "n_samples": args.n_samples, "temperature": args.temperature,
-                   "max_new_tokens": args.max_new_tokens})
+    result.update(
+        {
+            "label": args.label,
+            "model": args.model,
+            "adapter": args.adapter,
+            "n_samples": args.n_samples,
+            "temperature": args.temperature,
+            "max_new_tokens": args.max_new_tokens,
+        }
+    )
     outdir = Path(args.out)
     outdir.mkdir(parents=True, exist_ok=True)
     (outdir / f"passk_{args.label}.json").write_text(json.dumps(result, indent=2))

@@ -48,11 +48,11 @@ class Sample:
 #   3  per-row reduce then argmax, or sum a column  (football: most_scrimmage / total_tds)
 #   4  combine an aggregate line, or filter all rows (football: team_points / hundred_yd_rec)
 KIND_DEPTH = {
-    "over_budget": 1,        # compare grand total to a stated budget; OVER/UNDER
-    "line_item_total": 2,    # locate one item, read (or qty * unit_price) its line total
-    "item_count": 3,         # count the line items (reduce over all rows)
+    "over_budget": 1,  # compare grand total to a stated budget; OVER/UNDER
+    "line_item_total": 2,  # locate one item, read (or qty * unit_price) its line total
+    "item_count": 3,  # count the line items (reduce over all rows)
     "highest_line_item": 3,  # per-row line totals, then argmax
-    "grand_total": 4,        # combine subtotal + tax + shipping (composite-arithmetic wall)
+    "grand_total": 4,  # combine subtotal + tax + shipping (composite-arithmetic wall)
     "items_over_amount": 4,  # filter all rows by a line-total threshold -> set
 }
 
@@ -66,6 +66,7 @@ def _money_answer(cents: int) -> str:
 
 # --- invoice tasks ---------------------------------------------------------
 
+
 def task_line_item_total(rng: random.Random) -> Sample:
     """Line total for one named item (locate the row, report qty * unit price).
 
@@ -76,9 +77,11 @@ def task_line_item_total(rng: random.Random) -> Sample:
     it = rng.choice(inv["items"])
     return Sample(
         context=render_invoice(inv),
-        question=f"What is the line total for \"{it['description']}\" (in dollars)?",
-        answer=_money_answer(it["line_total"]), answer_type="numeric",
-        kind="line_item_total", depth=KIND_DEPTH["line_item_total"],
+        question=f'What is the line total for "{it["description"]}" (in dollars)?',
+        answer=_money_answer(it["line_total"]),
+        answer_type="numeric",
+        kind="line_item_total",
+        depth=KIND_DEPTH["line_item_total"],
     )
 
 
@@ -91,8 +94,10 @@ def task_grand_total(rng: random.Random) -> Sample:
     return Sample(
         context=render_invoice(inv),
         question="What is the grand total of this invoice including tax and shipping (in dollars)?",
-        answer=_money_answer(inv["grand_total"]), answer_type="numeric",
-        kind="grand_total", depth=KIND_DEPTH["grand_total"],
+        answer=_money_answer(inv["grand_total"]),
+        answer_type="numeric",
+        kind="grand_total",
+        depth=KIND_DEPTH["grand_total"],
     )
 
 
@@ -112,8 +117,10 @@ def task_highest_line_item(rng: random.Random) -> Sample:
     return Sample(
         context=render_invoice(inv),
         question="Which line item has the highest line total?",
-        answer=best["description"], answer_type="name",
-        kind="highest_line_item", depth=KIND_DEPTH["highest_line_item"],
+        answer=best["description"],
+        answer_type="name",
+        kind="highest_line_item",
+        depth=KIND_DEPTH["highest_line_item"],
     )
 
 
@@ -143,8 +150,10 @@ def task_items_over_amount(rng: random.Random) -> Sample:
             f"List every line item whose line total is ${dollars} or more "
             f"(comma-separated, or 'none')."
         ),
-        answer=answer, answer_type="set",
-        kind="items_over_amount", depth=KIND_DEPTH["items_over_amount"],
+        answer=answer,
+        answer_type="set",
+        kind="items_over_amount",
+        depth=KIND_DEPTH["items_over_amount"],
     )
 
 
@@ -162,10 +171,10 @@ def task_over_budget(rng: random.Random) -> Sample:
     pct = rng.randint(1, 20)
     delta = max(100, gt * pct // 100)  # at least $1 so it never lands on a tie
     if rng.random() < 0.5:
-        budget = gt - delta            # grand total exceeds budget -> OVER
+        budget = gt - delta  # grand total exceeds budget -> OVER
         answer = "OVER"
     else:
-        budget = gt + delta            # grand total under budget -> UNDER
+        budget = gt + delta  # grand total under budget -> UNDER
         answer = "UNDER"
     budget = max(100, (budget // 100) * 100)  # whole dollars, positive
     # Re-derive the label in case the dollar-rounding nudged us across the line
@@ -175,11 +184,12 @@ def task_over_budget(rng: random.Random) -> Sample:
     return Sample(
         context=render_invoice(inv),
         question=(
-            f"Is the grand total OVER or UNDER a budget of ${budget_str}? "
-            f"Answer OVER or UNDER."
+            f"Is the grand total OVER or UNDER a budget of ${budget_str}? Answer OVER or UNDER."
         ),
-        answer=answer, answer_type="decision",
-        kind="over_budget", depth=KIND_DEPTH["over_budget"],
+        answer=answer,
+        answer_type="decision",
+        kind="over_budget",
+        depth=KIND_DEPTH["over_budget"],
     )
 
 
@@ -194,8 +204,10 @@ def task_item_count(rng: random.Random) -> Sample:
     return Sample(
         context=render_invoice(inv),
         question="How many distinct line items are on this invoice?",
-        answer=str(len(inv["items"])), answer_type="numeric",
-        kind="item_count", depth=KIND_DEPTH["item_count"],
+        answer=str(len(inv["items"])),
+        answer_type="numeric",
+        kind="item_count",
+        depth=KIND_DEPTH["item_count"],
     )
 
 

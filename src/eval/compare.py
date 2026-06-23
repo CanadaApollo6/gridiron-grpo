@@ -19,7 +19,7 @@ from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from eval.stats import wilson, mcnemar_counts, mcnemar_exact  # noqa: E402
+from eval.stats import mcnemar_counts, mcnemar_exact, wilson  # noqa: E402
 
 
 def _acc_ci(items):
@@ -45,12 +45,17 @@ def build_report(base: dict, tuned: dict) -> tuple[dict, str]:
         b, c = mcnemar_counts([x["correct"] for x in bi], [x["correct"] for x in ti])
         p = mcnemar_exact(b, c)
         return {
-            "name": name, "n": n,
-            "base": round(ba, 4), "base_ci": [round(bci[0], 4), round(bci[1], 4)],
-            "tuned": round(ta, 4), "tuned_ci": [round(tci[0], 4), round(tci[1], 4)],
+            "name": name,
+            "n": n,
+            "base": round(ba, 4),
+            "base_ci": [round(bci[0], 4), round(bci[1], 4)],
+            "tuned": round(ta, 4),
+            "tuned_ci": [round(tci[0], 4), round(tci[1], 4)],
             "delta_pp": round((ta - ba) * 100, 1),
-            "mcnemar_p": round(p, 4), "sig": _stars(p),
-            "regressions_b": b, "gains_c": c,
+            "mcnemar_p": round(p, 4),
+            "sig": _stars(p),
+            "regressions_b": b,
+            "gains_c": c,
         }
 
     rows = [line("OVERALL", b_items, t_items)]
@@ -71,11 +76,18 @@ def build_report(base: dict, tuned: dict) -> tuple[dict, str]:
         by_depth_b[x.get("depth")].append(x)
     for x in t_items:
         by_depth_t[x.get("depth")].append(x)
-    depth_rows = [line(f"depth {d}", by_depth_b[d], by_depth_t[d])
-                  for d in sorted(by_depth_b, key=lambda x: (x is None, x))]
+    depth_rows = [
+        line(f"depth {d}", by_depth_b[d], by_depth_t[d])
+        for d in sorted(by_depth_b, key=lambda x: (x is None, x))
+    ]
 
-    report = {"overall": rows[0], "by_kind": kind_rows, "by_depth": depth_rows,
-              "base_label": base.get("label"), "tuned_label": tuned.get("label")}
+    report = {
+        "overall": rows[0],
+        "by_kind": kind_rows,
+        "by_depth": depth_rows,
+        "base_label": base.get("label"),
+        "tuned_label": tuned.get("label"),
+    }
     return report, _to_md(report)
 
 
@@ -85,19 +97,23 @@ def _to_md(rep: dict) -> str:
     def fmt(r, floor=True):
         f = ""
         if floor and r.get("floor") is not None:
-            f = f" {r['floor']*100:.0f}%"
-        return (f"| {r['name']} | {r['base']*100:.1f}% "
-                f"[{r['base_ci'][0]*100:.0f},{r['base_ci'][1]*100:.0f}] | "
-                f"{r['tuned']*100:.1f}% [{r['tuned_ci'][0]*100:.0f},{r['tuned_ci'][1]*100:.0f}] | "
-                f"{r['delta_pp']:+.1f} | {r['mcnemar_p']:.3f} {r['sig']} |{f}")
+            f = f" {r['floor'] * 100:.0f}%"
+        return (
+            f"| {r['name']} | {r['base'] * 100:.1f}% "
+            f"[{r['base_ci'][0] * 100:.0f},{r['base_ci'][1] * 100:.0f}] | "
+            f"{r['tuned'] * 100:.1f}% [{r['tuned_ci'][0] * 100:.0f},{r['tuned_ci'][1] * 100:.0f}] | "
+            f"{r['delta_pp']:+.1f} | {r['mcnemar_p']:.3f} {r['sig']} |{f}"
+        )
 
     L = []
     o = rep["overall"]
     L.append(f"### {tl} vs {bl}  (n={o['n']}, paired)")
     L.append("")
-    L.append(f"**Overall: {o['base']*100:.1f}% -> {o['tuned']*100:.1f}% "
-             f"({o['delta_pp']:+.1f}pp), McNemar p={o['mcnemar_p']:.3f} {o['sig']}** "
-             f"(regressions={o['regressions_b']}, gains={o['gains_c']})")
+    L.append(
+        f"**Overall: {o['base'] * 100:.1f}% -> {o['tuned'] * 100:.1f}% "
+        f"({o['delta_pp']:+.1f}pp), McNemar p={o['mcnemar_p']:.3f} {o['sig']}** "
+        f"(regressions={o['regressions_b']}, gains={o['gains_c']})"
+    )
     L.append("")
     L.append("| Task (by depth) | Base [95% CI] | Tuned [95% CI] | Δpp | McNemar p | Floor |")
     L.append("|---|---|---|---|---|---|")
@@ -109,9 +125,11 @@ def _to_md(rep: dict) -> str:
     for r in rep["by_depth"]:
         L.append(fmt(r, floor=False).rsplit("|", 1)[0] + "|")
     L.append("")
-    L.append("_McNemar significance: *** p<0.001, ** p<0.01, * p<0.05, ns = not "
-             "significant. Δ is only meaningful when it clears both the CI overlap "
-             "and the floor._")
+    L.append(
+        "_McNemar significance: *** p<0.001, ** p<0.01, * p<0.05, ns = not "
+        "significant. Δ is only meaningful when it clears both the CI overlap "
+        "and the floor._"
+    )
     return "\n".join(L)
 
 

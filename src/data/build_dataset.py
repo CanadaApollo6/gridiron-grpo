@@ -36,9 +36,11 @@ def get_sample_one(domain: str):
     source of truth for its ALL_TASKS / sample_one; this just dispatches."""
     if domain == "football":
         from data.tasks import sample_one  # noqa: E402
+
         return sample_one
     if domain == "invoices":
         from data.invoices_tasks import sample_one  # noqa: E402
+
         return sample_one
     raise ValueError(f"unknown domain: {domain!r} (expected 'football' or 'invoices')")
 
@@ -47,13 +49,15 @@ def build(n: int, rng: random.Random, sample_one) -> list[dict]:
     rows = []
     for _ in range(n):
         s = sample_one(rng)
-        rows.append({
-            "prompt": build_prompt(s.context, s.question),
-            "ground_truth": s.answer,
-            "answer_type": s.answer_type,
-            "kind": s.kind,
-            "depth": s.depth,
-        })
+        rows.append(
+            {
+                "prompt": build_prompt(s.context, s.question),
+                "ground_truth": s.answer,
+                "answer_type": s.answer_type,
+                "kind": s.kind,
+                "depth": s.depth,
+            }
+        )
     return rows
 
 
@@ -66,9 +70,13 @@ def write_jsonl(rows: list[dict], path: Path) -> None:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--domain", type=str, default="football",
-                    choices=["football", "invoices"],
-                    help="which data layer to draw from (default: football)")
+    ap.add_argument(
+        "--domain",
+        type=str,
+        default="football",
+        choices=["football", "invoices"],
+        help="which data layer to draw from (default: football)",
+    )
     ap.add_argument("--n_train", type=int, default=8000)
     ap.add_argument("--n_eval", type=int, default=800)
     ap.add_argument("--seed", type=int, default=7)
@@ -86,6 +94,7 @@ def main():
     write_jsonl(eval_, out / "eval.jsonl")
 
     from collections import Counter
+
     dist = Counter(r["kind"] for r in eval_)
     print(f"wrote {len(train)} train, {len(eval_)} eval to {out}/ (domain={args.domain})")
     print("eval kind distribution:", dict(dist))

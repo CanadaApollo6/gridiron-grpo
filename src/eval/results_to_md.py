@@ -25,8 +25,8 @@ def pp(base: float, tuned: float) -> str:
 
 
 def row(label: str, base: float, tuned: float, bold: bool = False) -> str:
-    b = f"{base*100:.1f}%"
-    t = f"{tuned*100:.1f}%"
+    b = f"{base * 100:.1f}%"
+    t = f"{tuned * 100:.1f}%"
     d = pp(base, tuned)
     if bold:
         return f"| **{label}** | **{b}** | **{t}** | **{d}** |"
@@ -40,8 +40,10 @@ def main():
     a = json.load(open(sys.argv[1]))
     b = json.load(open(sys.argv[2]))
 
-    print(f"Overall: {a['accuracy']*100:.1f}% -> {b['accuracy']*100:.1f}% "
-          f"({pp(a['accuracy'], b['accuracy'])}) on n={a['n']}\n")
+    print(
+        f"Overall: {a['accuracy'] * 100:.1f}% -> {b['accuracy'] * 100:.1f}% "
+        f"({pp(a['accuracy'], b['accuracy'])}) on n={a['n']}\n"
+    )
 
     print("| Metric | Base model | GRPO-tuned | \u0394 |")
     print("|---|---|---|---|")

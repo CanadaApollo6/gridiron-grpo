@@ -55,7 +55,6 @@ from data.generators import render_box_score  # noqa: E402  (EXACT format reuse)
 from data.tasks import KIND_DEPTH  # noqa: E402  (single source of truth for depth)
 from prompts import build_prompt  # noqa: E402
 
-
 # Skill positions whose rushing/receiving lines populate the offensive box.
 # (Matches what the synthetic generator models: RB/WR/TE/QB/FB touches.)
 SKILL_POSITIONS = {"QB", "RB", "WR", "TE", "FB"}
@@ -91,6 +90,7 @@ def load_weekly(years: list[int], cache_dir: Path):
 
     if missing:
         import nfl_data_py as nfl
+
         for y, p in missing:
             # downcast=False keeps int columns as ints (carries/tds/receptions),
             # which we rely on; floats (yards) are cast to int at render time.
@@ -150,6 +150,7 @@ def _to_int(v) -> int:
         if v is None:
             return 0
         import math
+
         f = float(v)
         if math.isnan(f):
             return 0
@@ -183,9 +184,7 @@ def build_box(group_df, n_skill: int) -> dict | None:
     if df.empty:
         return None
     # stable, deterministic order: touches desc, scrim desc, name asc
-    df = df.sort_values(
-        ["_touches", "_scrim", "player_name"], ascending=[False, False, True]
-    )
+    df = df.sort_values(["_touches", "_scrim", "player_name"], ascending=[False, False, True])
 
     players = []
     used_last: set[str] = set()
@@ -197,15 +196,17 @@ def build_box(group_df, n_skill: int) -> dict | None:
         if not last or last in used_last:
             continue  # enforce unique last names within the box
         used_last.add(last)
-        players.append({
-            "name": name,
-            "rush_att": _to_int(r.get(COLMAP["rush_att"])),
-            "rush_yds": _to_int(r.get(COLMAP["rush_yds"])),
-            "rush_td": _to_int(r.get(COLMAP["rush_td"])),
-            "rec": _to_int(r.get(COLMAP["rec"])),
-            "rec_yds": _to_int(r.get(COLMAP["rec_yds"])),
-            "rec_td": _to_int(r.get(COLMAP["rec_td"])),
-        })
+        players.append(
+            {
+                "name": name,
+                "rush_att": _to_int(r.get(COLMAP["rush_att"])),
+                "rush_yds": _to_int(r.get(COLMAP["rush_yds"])),
+                "rush_td": _to_int(r.get(COLMAP["rush_td"])),
+                "rec": _to_int(r.get(COLMAP["rec"])),
+                "rec_yds": _to_int(r.get(COLMAP["rec_yds"])),
+                "rec_td": _to_int(r.get(COLMAP["rec_td"])),
+            }
+        )
 
     if len(players) < 2:
         return None
@@ -218,11 +219,13 @@ def build_box(group_df, n_skill: int) -> dict | None:
     off_td = sum(p["rush_td"] + p["rec_td"] for p in players)
     two_pt = 0
     for _, r in df.head(len(players)).iterrows():
-        for c in ("rushing_2pt_conversions", "receiving_2pt_conversions",
-                  "passing_2pt_conversions"):
+        for c in (
+            "rushing_2pt_conversions",
+            "receiving_2pt_conversions",
+            "passing_2pt_conversions",
+        ):
             two_pt += _to_int(r.get(c))
-    scoring = {"td": off_td, "fg": 0, "xp": 0, "two_pt": two_pt,
-               "points": off_td * 6 + two_pt * 2}
+    scoring = {"td": off_td, "fg": 0, "xp": 0, "two_pt": two_pt, "points": off_td * 6 + two_pt * 2}
     return {"players": players, "scoring": scoring}
 
 
@@ -253,19 +256,27 @@ def tasks_for_box(box: dict, rng: random.Random) -> list[dict]:
     # scrimmage_total -- pick one player (seeded)
     p = rng.choice(players)
     total = p["rush_yds"] + p["rec_yds"]
-    rows.append(_row(
-        context,
-        f"How many total yards from scrimmage (rushing + receiving) did {p['name']} have?",
-        str(total), "numeric", "scrimmage_total",
-    ))
+    rows.append(
+        _row(
+            context,
+            f"How many total yards from scrimmage (rushing + receiving) did {p['name']} have?",
+            str(total),
+            "numeric",
+            "scrimmage_total",
+        )
+    )
 
     # total_tds -- sum rush+rec TDs across the listed players
     tds = sum(pl["rush_td"] + pl["rec_td"] for pl in players)
-    rows.append(_row(
-        context,
-        "How many total touchdowns (rushing + receiving) did these players score combined?",
-        str(tds), "numeric", "total_tds",
-    ))
+    rows.append(
+        _row(
+            context,
+            "How many total touchdowns (rushing + receiving) did these players score combined?",
+            str(tds),
+            "numeric",
+            "total_tds",
+        )
+    )
 
     # most_scrimmage -- argmax yards-from-scrimmage; skip on a tie at the top
     # (the synthetic task re-draws; we have a fixed box, so we just skip to keep
@@ -273,27 +284,34 @@ def tasks_for_box(box: dict, rng: random.Random) -> list[dict]:
     totals = sorted((pl["rush_yds"] + pl["rec_yds"] for pl in players), reverse=True)
     if len(totals) >= 2 and totals[0] != totals[1]:
         best = max(players, key=lambda pl: (pl["rush_yds"] + pl["rec_yds"], pl["name"]))
-        rows.append(_row(
-            context,
-            "Which player had the most total yards from scrimmage?",
-            best["name"], "name", "most_scrimmage",
-        ))
+        rows.append(
+            _row(
+                context,
+                "Which player had the most total yards from scrimmage?",
+                best["name"],
+                "name",
+                "most_scrimmage",
+            )
+        )
 
     # hundred_yd_rec -- set of players with >= 100 receiving yards
     qualifiers = [pl["name"] for pl in players if pl["rec_yds"] >= 100]
     answer = ", ".join(sorted(qualifiers)) if qualifiers else "none"
-    rows.append(_row(
-        context,
-        "List every player with 100 or more receiving yards (comma-separated, or 'none').",
-        answer, "set", "hundred_yd_rec",
-    ))
+    rows.append(
+        _row(
+            context,
+            "List every player with 100 or more receiving yards (comma-separated, or 'none').",
+            answer,
+            "set",
+            "hundred_yd_rec",
+        )
+    )
 
     return rows
 
 
 # ---------------------------------------------------------------------------
-def build_rows(weekly_df, season_types: list[str], weeks: list[int],
-               n_skill: int, seed: int):
+def build_rows(weekly_df, season_types: list[str], weeks: list[int], n_skill: int, seed: int):
     """Iterate (season, week, team) games in a deterministic order and emit task
     rows. One RNG, advanced per box, so the whole file is reproducible."""
     rng = random.Random(seed)
@@ -312,7 +330,8 @@ def build_rows(weekly_df, season_types: list[str], weeks: list[int],
     )
     for _, k in keys.iterrows():
         g = df[
-            (df["season"] == k["season"]) & (df["week"] == k["week"])
+            (df["season"] == k["season"])
+            & (df["week"] == k["week"])
             & (df["recent_team"] == k["recent_team"])
             & (df["opponent_team"] == k["opponent_team"])
         ]
@@ -333,22 +352,34 @@ def write_jsonl(rows: list[dict], path: Path) -> None:
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--years", type=str, default="2023",
-                    help="season(s): '2023' or '2022,2023' or '2021-2023'")
-    ap.add_argument("--week", type=str, default="1",
-                    help="week(s) within season: '1', '1-4', or '1,3,5'")
-    ap.add_argument("--season_type", type=str, default="REG",
-                    choices=["REG", "POST", "ALL"],
-                    help="which season type(s) to include")
-    ap.add_argument("--n_skill", type=int, default=6,
-                    help="top-N skill players per team-game (matches synthetic default 6)")
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ap.add_argument(
+        "--years", type=str, default="2023", help="season(s): '2023' or '2022,2023' or '2021-2023'"
+    )
+    ap.add_argument(
+        "--week", type=str, default="1", help="week(s) within season: '1', '1-4', or '1,3,5'"
+    )
+    ap.add_argument(
+        "--season_type",
+        type=str,
+        default="REG",
+        choices=["REG", "POST", "ALL"],
+        help="which season type(s) to include",
+    )
+    ap.add_argument(
+        "--n_skill",
+        type=int,
+        default=6,
+        help="top-N skill players per team-game (matches synthetic default 6)",
+    )
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--out", type=str, default="data_out/eval_real.jsonl")
     ap.add_argument("--cache_dir", type=str, default="data_out/nflverse_cache")
-    ap.add_argument("--limit", type=int, default=0,
-                    help="if >0, keep only the first N rows (quick smoke build)")
+    ap.add_argument(
+        "--limit", type=int, default=0, help="if >0, keep only the first N rows (quick smoke build)"
+    )
     args = ap.parse_args()
 
     years = parse_week_arg(args.years)  # same int-list parser works for years
@@ -368,12 +399,16 @@ def main():
 
     dist = Counter(r["kind"] for r in rows)
     print(f"\nwrote {len(rows)} REAL eval rows to {out}")
-    print(f"  years={years} weeks={weeks} season_type={season_types} "
-          f"n_skill={args.n_skill} seed={args.seed}")
+    print(
+        f"  years={years} weeks={weeks} season_type={season_types} "
+        f"n_skill={args.n_skill} seed={args.seed}"
+    )
     print(f"  boxes used={n_boxes}, team-games skipped (too thin)={n_skipped}")
     print(f"  kind distribution: {dict(dist)}")
-    print("  note: team_points and td_or_fg are intentionally omitted "
-          "(not reconstructable from weekly skill data / no game-state).")
+    print(
+        "  note: team_points and td_or_fg are intentionally omitted "
+        "(not reconstructable from weekly skill data / no game-state)."
+    )
 
 
 if __name__ == "__main__":

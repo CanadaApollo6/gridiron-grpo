@@ -15,8 +15,10 @@ import random
 from dataclasses import dataclass
 
 from data.generators import (
-    generate_box_score, render_box_score,
-    generate_game_state, render_game_state,
+    generate_box_score,
+    generate_game_state,
+    render_box_score,
+    render_game_state,
 )
 
 
@@ -33,16 +35,17 @@ class Sample:
 # Compositional-depth labels (low -> high). Single source of truth shared by the
 # dataset, the eval grouping, and EXPERIMENTS.md.
 KIND_DEPTH = {
-    "td_or_fg": 1,          # one comparison (deficit < 3); commit-early
-    "scrimmage_total": 2,   # locate one player, add 2 fields
-    "total_tds": 3,         # sum a field across all rows
-    "most_scrimmage": 3,    # per-row total, then argmax
-    "team_points": 4,       # sum player TDs (x6) + combine the FG/XP/2pt line
-    "hundred_yd_rec": 4,    # filter all rows by threshold -> set
+    "td_or_fg": 1,  # one comparison (deficit < 3); commit-early
+    "scrimmage_total": 2,  # locate one player, add 2 fields
+    "total_tds": 3,  # sum a field across all rows
+    "most_scrimmage": 3,  # per-row total, then argmax
+    "team_points": 4,  # sum player TDs (x6) + combine the FG/XP/2pt line
+    "hundred_yd_rec": 4,  # filter all rows by threshold -> set
 }
 
 
 # --- box-score tasks -------------------------------------------------------
+
 
 def task_scrimmage_total(rng: random.Random) -> Sample:
     """Total yards from scrimmage (rush + rec) for one named player."""
@@ -52,7 +55,9 @@ def task_scrimmage_total(rng: random.Random) -> Sample:
     return Sample(
         context=render_box_score(box),
         question=f"How many total yards from scrimmage (rushing + receiving) did {p['name']} have?",
-        answer=str(total), answer_type="numeric", kind="scrimmage_total",
+        answer=str(total),
+        answer_type="numeric",
+        kind="scrimmage_total",
         depth=KIND_DEPTH["scrimmage_total"],
     )
 
@@ -66,7 +71,9 @@ def task_team_points(rng: random.Random) -> Sample:
     return Sample(
         context=render_box_score(box),
         question="How many total points did the team score?",
-        answer=str(box["scoring"]["points"]), answer_type="numeric", kind="team_points",
+        answer=str(box["scoring"]["points"]),
+        answer_type="numeric",
+        kind="team_points",
         depth=KIND_DEPTH["team_points"],
     )
 
@@ -86,7 +93,9 @@ def task_most_scrimmage(rng: random.Random) -> Sample:
     return Sample(
         context=render_box_score(box),
         question="Which player had the most total yards from scrimmage?",
-        answer=best["name"], answer_type="name", kind="most_scrimmage",
+        answer=best["name"],
+        answer_type="name",
+        kind="most_scrimmage",
         depth=KIND_DEPTH["most_scrimmage"],
     )
 
@@ -99,7 +108,9 @@ def task_hundred_yard_receivers(rng: random.Random) -> Sample:
     return Sample(
         context=render_box_score(box),
         question="List every player with 100 or more receiving yards (comma-separated, or 'none').",
-        answer=answer, answer_type="set", kind="hundred_yd_rec",
+        answer=answer,
+        answer_type="set",
+        kind="hundred_yd_rec",
         depth=KIND_DEPTH["hundred_yd_rec"],
     )
 
@@ -111,12 +122,15 @@ def task_total_touchdowns(rng: random.Random) -> Sample:
     return Sample(
         context=render_box_score(box),
         question="How many total touchdowns (rushing + receiving) did these players score combined?",
-        answer=str(tds), answer_type="numeric", kind="total_tds",
+        answer=str(tds),
+        answer_type="numeric",
+        kind="total_tds",
         depth=KIND_DEPTH["total_tds"],
     )
 
 
 # --- game-state task -------------------------------------------------------
+
 
 def task_td_or_fg(rng: random.Random) -> Sample:
     """Decision: does the offense need a TD, or is a FG enough to take the lead?
@@ -130,7 +144,9 @@ def task_td_or_fg(rng: random.Random) -> Sample:
     return Sample(
         context=render_game_state(gs),
         question="To TAKE THE LEAD (not just tie), does the offense need a touchdown or is a field goal enough? Answer TD or FG.",
-        answer=answer, answer_type="decision", kind="td_or_fg",
+        answer=answer,
+        answer_type="decision",
+        kind="td_or_fg",
         depth=KIND_DEPTH["td_or_fg"],
     )
 

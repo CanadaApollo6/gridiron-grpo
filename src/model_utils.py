@@ -25,6 +25,7 @@ def pick_attn_impl() -> str:
         return forced
     try:
         import flash_attn  # noqa: F401
+
         return "flash_attention_2"
     except Exception:
         return "sdpa"

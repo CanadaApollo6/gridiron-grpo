@@ -34,9 +34,7 @@ def build_prompt(context: str, question: str) -> list[dict]:
 
 _ANSWER_RE = re.compile(r"<answer>\s*(.*?)\s*</answer>", re.DOTALL | re.IGNORECASE)
 _THINK_RE = re.compile(r"<think>\s*(.*?)\s*</think>", re.DOTALL | re.IGNORECASE)
-_FORMAT_RE = re.compile(
-    r"<think>.*?</think>\s*<answer>.*?</answer>", re.DOTALL | re.IGNORECASE
-)
+_FORMAT_RE = re.compile(r"<think>.*?</think>\s*<answer>.*?</answer>", re.DOTALL | re.IGNORECASE)
 
 
 def extract_answer(text: str) -> str | None:

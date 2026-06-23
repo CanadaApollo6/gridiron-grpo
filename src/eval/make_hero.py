@@ -24,6 +24,7 @@ def main():
         print("usage: make_hero.py smollm2_comparison.json qwen_comparison.json out.png")
         sys.exit(1)
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
@@ -36,18 +37,41 @@ def main():
 
     fig, ax = plt.subplots(figsize=(8.2, 5))
     w = 0.34
-    for i, (name, sub, path) in enumerate(runs):
+    for i, (_name, _sub, path) in enumerate(runs):
         o = json.load(open(path))["overall"]
         base, tuned = o["base"], o["tuned"]
         d, sig = o["delta_pp"], o["sig"]
         ax.bar(i - w / 2, base, w, color=GRAY, label="base" if i == 0 else None)
         ax.bar(i + w / 2, tuned, w, color=NV_GREEN, label="GRPO-tuned" if i == 0 else None)
-        ax.text(i - w / 2, base + 0.008, f"{base:.1%}", ha="center", va="bottom", fontsize=10, color="#444")
-        ax.text(i + w / 2, tuned + 0.008, f"{tuned:.1%}", ha="center", va="bottom", fontsize=10,
-                color=NV_GREEN, fontweight="bold")
+        ax.text(
+            i - w / 2,
+            base + 0.008,
+            f"{base:.1%}",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+            color="#444",
+        )
+        ax.text(
+            i + w / 2,
+            tuned + 0.008,
+            f"{tuned:.1%}",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+            color=NV_GREEN,
+            fontweight="bold",
+        )
         tag = "ns" if sig == "ns" else sig
-        ax.text(i, max(base, tuned) + 0.05, f"Δ {d:+.1f}pp  ({tag})", ha="center", va="bottom",
-                fontsize=11, fontweight="bold")
+        ax.text(
+            i,
+            max(base, tuned) + 0.05,
+            f"Δ {d:+.1f}pp  ({tag})",
+            ha="center",
+            va="bottom",
+            fontsize=11,
+            fontweight="bold",
+        )
 
     ax.set_xticks(range(len(runs)))
     ax.set_xticklabels([f"{n}\n{s}" for n, s, _ in runs], fontsize=10)
@@ -55,8 +79,9 @@ def main():
     ax.set_ylim(0, 0.42)
     ax.set_yticks([0, 0.1, 0.2, 0.3, 0.4])
     ax.set_yticklabels(["0%", "10%", "20%", "30%", "40%"])
-    ax.set_title("Same task, same recipe: GRPO amplifies a weak base, not a saturated one",
-                 fontsize=12)
+    ax.set_title(
+        "Same task, same recipe: GRPO amplifies a weak base, not a saturated one", fontsize=12
+    )
     ax.legend(loc="upper right", frameon=False)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)

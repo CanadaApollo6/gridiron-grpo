@@ -65,9 +65,18 @@ CATALOG = [
 # Plausible business customer names; cosmetic only (not used in any answer), so
 # they don't need a uniqueness invariant.
 CUSTOMERS = [
-    "Northwind Traders", "Acme Supplies", "Globex Corp", "Initech LLC",
-    "Umbrella Retail", "Soylent Foods", "Stark Industries", "Wayne Enterprises",
-    "Hooli Inc", "Pied Piper", "Vandelay Imports", "Wonka Logistics",
+    "Northwind Traders",
+    "Acme Supplies",
+    "Globex Corp",
+    "Initech LLC",
+    "Umbrella Retail",
+    "Soylent Foods",
+    "Stark Industries",
+    "Wayne Enterprises",
+    "Hooli Inc",
+    "Pied Piper",
+    "Vandelay Imports",
+    "Wonka Logistics",
 ]
 
 
@@ -102,26 +111,28 @@ def generate_invoice(rng: random.Random, n_items: int = 5) -> dict:
     for desc, unit_price in items_spec:
         qty = rng.randint(1, 12)
         line_total = qty * unit_price  # exact in cents
-        items.append({
-            "description": desc,
-            "qty": qty,
-            "unit_price": unit_price,   # cents
-            "line_total": line_total,   # cents
-        })
+        items.append(
+            {
+                "description": desc,
+                "qty": qty,
+                "unit_price": unit_price,  # cents
+                "line_total": line_total,  # cents
+            }
+        )
 
-    subtotal = sum(it["line_total"] for it in items)            # cents
+    subtotal = sum(it["line_total"] for it in items)  # cents
 
     # Tax rate as an integer count of basis points so the math is exact and the
     # printed percent is clean (e.g. 825 bp -> 8.25%). Tax in cents is the
     # subtotal times the rate, rounded to the nearest cent (banker-free, the way
     # an invoice rounds): round(subtotal_cents * bp / 10000).
-    tax_bp = rng.choice([0, 500, 625, 700, 825, 900, 1000])     # basis points
-    tax = int((subtotal * tax_bp + 5000) // 10000)              # cents, rounded half-up
+    tax_bp = rng.choice([0, 500, 625, 700, 825, 900, 1000])  # basis points
+    tax = int((subtotal * tax_bp + 5000) // 10000)  # cents, rounded half-up
 
     # Shipping is a flat handling fee in whole dollars (so always whole cents).
     shipping = rng.choice([0, 1500, 2500, 4000, 7500]) if rng.random() < 0.85 else 0
 
-    grand_total = subtotal + tax + shipping                    # cents, DERIVED
+    grand_total = subtotal + tax + shipping  # cents, DERIVED
 
     return {
         "customer": rng.choice(CUSTOMERS),

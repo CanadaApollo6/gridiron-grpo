@@ -35,6 +35,7 @@ class ReasoningTool:
         )
         if adapter:
             from peft import PeftModel
+
             model = PeftModel.from_pretrained(model, adapter).merge_and_unload()
         self.model = model.eval()
 
@@ -43,9 +44,13 @@ class ReasoningTool:
         msgs = build_prompt(context, question)
         text = self.tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
         enc = self.tok(text, return_tensors="pt").to(self.model.device)
-        gen = self.model.generate(**enc, max_new_tokens=max_new_tokens, do_sample=False,
-                                  pad_token_id=self.tok.pad_token_id)
-        out = self.tok.decode(gen[0][enc["input_ids"].shape[1]:], skip_special_tokens=True)
+        gen = self.model.generate(
+            **enc,
+            max_new_tokens=max_new_tokens,
+            do_sample=False,
+            pad_token_id=self.tok.pad_token_id,
+        )
+        out = self.tok.decode(gen[0][enc["input_ids"].shape[1] :], skip_special_tokens=True)
         return extract_answer(out) or out
 
 
@@ -68,6 +73,8 @@ class ReasoningTool:
 
 if __name__ == "__main__":
     tool = ReasoningTool("Qwen/Qwen2.5-1.5B-Instruct", adapter=None)
-    ctx = ("Player | RushAtt RushYds RushTD | Rec RecYds RecTD\n"
-           "E. Thomas | 22 119 1 | 2 29 0\nC. Jackson | 10 43 2 | 12 91 0")
+    ctx = (
+        "Player | RushAtt RushYds RushTD | Rec RecYds RecTD\n"
+        "E. Thomas | 22 119 1 | 2 29 0\nC. Jackson | 10 43 2 | 12 91 0"
+    )
     print(tool.run(ctx, "Which player had the most total yards from scrimmage?"))

@@ -27,11 +27,36 @@ import random
 
 FIRST_INITIALS = list("ABCDEFGHJKLMRST")
 LAST_NAMES = [
-    "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller",
-    "Davis", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Wilson",
-    "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin", "Lee",
-    "Perez", "Thompson", "White", "Harris", "Sanchez", "Clark", "Ramirez",
-    "Lewis", "Robinson", "Walker",
+    "Smith",
+    "Johnson",
+    "Williams",
+    "Brown",
+    "Jones",
+    "Garcia",
+    "Miller",
+    "Davis",
+    "Rodriguez",
+    "Martinez",
+    "Hernandez",
+    "Lopez",
+    "Wilson",
+    "Anderson",
+    "Thomas",
+    "Taylor",
+    "Moore",
+    "Jackson",
+    "Martin",
+    "Lee",
+    "Perez",
+    "Thompson",
+    "White",
+    "Harris",
+    "Sanchez",
+    "Clark",
+    "Ramirez",
+    "Lewis",
+    "Robinson",
+    "Walker",
 ]
 
 
@@ -70,23 +95,33 @@ def generate_box_score(rng: random.Random, n_skill: int = 6) -> dict:
         # "100+ receiving yards" set task isn't dominated by the empty set.
         rec_yds = 0 if rec == 0 else int(rec * rng.uniform(7.0, 16.0))
         rec_td = 0 if rec_yds < 25 else rng.choice([0, 0, 1, 1])
-        players.append({
-            "name": nm,
-            "rush_att": rush_att, "rush_yds": rush_yds, "rush_td": rush_td,
-            "rec": rec, "rec_yds": rec_yds, "rec_td": rec_td,
-        })
+        players.append(
+            {
+                "name": nm,
+                "rush_att": rush_att,
+                "rush_yds": rush_yds,
+                "rush_td": rush_td,
+                "rec": rec,
+                "rec_yds": rec_yds,
+                "rec_td": rec_td,
+            }
+        )
 
     # --- Team scoring DERIVED from the players (consistency invariant) --------
     off_td = sum(p["rush_td"] + p["rec_td"] for p in players)
-    xp = rng.randint(0, off_td)                   # extra points made  (<= TDs)
+    xp = rng.randint(0, off_td)  # extra points made  (<= TDs)
     two_pt = rng.randint(0, max(0, off_td - xp))  # two-point conversions made
-    fgs = rng.randint(0, 4)                       # field goals (independent of TDs)
+    fgs = rng.randint(0, 4)  # field goals (independent of TDs)
     points = off_td * 6 + fgs * 3 + xp * 1 + two_pt * 2
 
     return {
         "players": players,
         "scoring": {
-            "td": off_td, "fg": fgs, "xp": xp, "two_pt": two_pt, "points": points,
+            "td": off_td,
+            "fg": fgs,
+            "xp": xp,
+            "two_pt": two_pt,
+            "points": points,
         },
     }
 
@@ -118,17 +153,21 @@ def generate_game_state(rng: random.Random) -> dict:
     model could score 75% by always answering TD without reasoning)."""
     down = rng.randint(1, 4)
     distance = rng.randint(1, 15)
-    yardline = rng.randint(2, 95)          # distance from opponent end zone
+    yardline = rng.randint(2, 95)  # distance from opponent end zone
     if rng.random() < 0.5:
-        deficit = rng.choice([1, 2])               # FG takes the lead
+        deficit = rng.choice([1, 2])  # FG takes the lead
     else:
-        deficit = rng.choice([3, 4, 5, 6, 7, 8])   # need a TD
+        deficit = rng.choice([3, 4, 5, 6, 7, 8])  # need a TD
     score_diff = -deficit
     minutes = rng.randint(0, 2)
     seconds = rng.choice([5, 12, 25, 38, 47, 59])
     return {
-        "down": down, "distance": distance, "yardline": yardline,
-        "score_diff": score_diff, "minutes": minutes, "seconds": seconds,
+        "down": down,
+        "distance": distance,
+        "yardline": yardline,
+        "score_diff": score_diff,
+        "minutes": minutes,
+        "seconds": seconds,
     }
 
 

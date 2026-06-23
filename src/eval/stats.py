@@ -38,7 +38,7 @@ def wilson_str(hits: int, n: int, z: float = 1.96) -> str:
     """'52.3% [44.1, 60.4]' -- accuracy with its 95% CI, for tables."""
     lo, hi = wilson(hits, n, z)
     p = hits / n if n else 0.0
-    return f"{p*100:.1f}% [{lo*100:.1f}, {hi*100:.1f}]"
+    return f"{p * 100:.1f}% [{lo * 100:.1f}, {hi * 100:.1f}]"
 
 
 def mcnemar_counts(base_correct: list[bool], tuned_correct: list[bool]) -> tuple[int, int]:
@@ -48,8 +48,8 @@ def mcnemar_counts(base_correct: list[bool], tuned_correct: list[bool]) -> tuple
     Concordant pairs carry no information about the change and are ignored."""
     if len(base_correct) != len(tuned_correct):
         raise ValueError("paired inputs must be the same length")
-    b = sum(1 for a, t in zip(base_correct, tuned_correct) if a and not t)
-    c = sum(1 for a, t in zip(base_correct, tuned_correct) if (not a) and t)
+    b = sum(1 for a, t in zip(base_correct, tuned_correct, strict=False) if a and not t)
+    c = sum(1 for a, t in zip(base_correct, tuned_correct, strict=False) if (not a) and t)
     return b, c
 
 
@@ -60,7 +60,7 @@ def mcnemar_exact(b: int, c: int) -> float:
     if n == 0:
         return 1.0
     k = min(b, c)
-    tail = sum(math.comb(n, i) for i in range(0, k + 1)) / (2 ** n)
+    tail = sum(math.comb(n, i) for i in range(0, k + 1)) / (2**n)
     return min(1.0, 2.0 * tail)
 
 
@@ -79,11 +79,12 @@ def pass_at_k(n: int, c: int, k: int) -> float:
 
 if __name__ == "__main__":
     import random
+
     ok = True
 
     # --- pass_at_k vs Monte Carlo --------------------------------------------
     random.seed(0)
-    for (n, c, k) in [(64, 5, 8), (10, 5, 2), (20, 1, 8), (16, 16, 8), (32, 0, 4)]:
+    for n, c, k in [(64, 5, 8), (10, 5, 2), (20, 1, 8), (16, 16, 8), (32, 0, 4)]:
         analytic = pass_at_k(n, c, k)
         # simulate: a pool of n items with c correct; draw k without replacement
         pool = [1] * c + [0] * (n - c)
@@ -94,7 +95,9 @@ if __name__ == "__main__":
         mc = hit / trials
         close = abs(analytic - mc) < 0.01
         ok &= close
-        print(f"pass@{k} n={n} c={c}: analytic={analytic:.4f} mc={mc:.4f} {'ok' if close else 'FAIL'}")
+        print(
+            f"pass@{k} n={n} c={c}: analytic={analytic:.4f} mc={mc:.4f} {'ok' if close else 'FAIL'}"
+        )
 
     # --- wilson against textbook value ---------------------------------------
     lo, hi = wilson(50, 100)
@@ -103,10 +106,10 @@ if __name__ == "__main__":
     print(f"wilson(50,100)=({lo:.4f},{hi:.4f}) expect ~(0.4038,0.5962) {'ok' if w_ok else 'FAIL'}")
 
     # --- mcnemar exact against hand value ------------------------------------
-    p = mcnemar_exact(10, 2)   # 2*(C(12,0)+C(12,1)+C(12,2))/2^12 = 2*79/4096
+    p = mcnemar_exact(10, 2)  # 2*(C(12,0)+C(12,1)+C(12,2))/2^12 = 2*79/4096
     m_ok = abs(p - (2 * 79 / 4096)) < 1e-9
     ok &= m_ok
-    print(f"mcnemar_exact(10,2)={p:.4f} expect {2*79/4096:.4f} {'ok' if m_ok else 'FAIL'}")
+    print(f"mcnemar_exact(10,2)={p:.4f} expect {2 * 79 / 4096:.4f} {'ok' if m_ok else 'FAIL'}")
     # symmetric, and (0,0)->1.0
     ok &= mcnemar_exact(2, 10) == mcnemar_exact(10, 2)
     ok &= mcnemar_exact(0, 0) == 1.0
@@ -114,8 +117,9 @@ if __name__ == "__main__":
     # --- counts helper --------------------------------------------------------
     b, c = mcnemar_counts([True, True, False, False], [True, False, True, True])
     ok &= (b, c) == (1, 2)
-    print(f"mcnemar_counts -> b={b} c={c} expect b=1 c=2 {'ok' if (b,c)==(1,2) else 'FAIL'}")
+    print(f"mcnemar_counts -> b={b} c={c} expect b=1 c=2 {'ok' if (b, c) == (1, 2) else 'FAIL'}")
 
     print("ALL TESTS", "PASS" if ok else "FAIL")
     import sys
+
     sys.exit(0 if ok else 1)

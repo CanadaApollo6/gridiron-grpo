@@ -26,8 +26,12 @@ from eval.compare import build_report  # noqa: E402
 
 def _family(model: str | None) -> str:
     m = (model or "").lower()
-    for key, name in [("qwen", "Qwen2.5"), ("smollm", "SmolLM2"),
-                      ("llama", "Llama-3.2"), ("olmo", "OLMo-2")]:
+    for key, name in [
+        ("qwen", "Qwen2.5"),
+        ("smollm", "SmolLM2"),
+        ("llama", "Llama-3.2"),
+        ("olmo", "OLMo-2"),
+    ]:
         if key in m:
             return name
     return (model or "unknown").split("/")[-1]
@@ -43,9 +47,9 @@ def _recipe_tag(cfg: dict) -> str:
     if lt == "bnpo" and sr and not mt:
         base = "R0"
     elif lt == "dr_grpo" and not sr and not mt:
-        base = "R1"          # Dr. GRPO core (no mask_truncated)
+        base = "R1"  # Dr. GRPO core (no mask_truncated)
     elif lt == "dr_grpo" and not sr and mt:
-        base = "R2"          # + DAPO (mask_truncated [+ epsilon_high])
+        base = "R2"  # + DAPO (mask_truncated [+ epsilon_high])
     else:
         base = f"{lt}{'' if sr else '+nsr'}{'+mt' if mt else ''}{'+eh' if eh else ''}"
     if beta is not None and beta != 0.04:
@@ -93,15 +97,23 @@ def aggregate(runs: list[dict]) -> dict:
         report, _ = build_report(r["base"], r["grpo"])
         m = r["meta"]
         for kind_row in [report["overall"]] + report["by_kind"]:
-            long_rows.append({
-                "family": m["family"], "recipe": m["recipe"], "seed": m["seed"],
-                "kind": kind_row["name"], "n": kind_row["n"],
-                "base": kind_row["base"], "tuned": kind_row["tuned"],
-                "delta_pp": kind_row["delta_pp"],
-                "ci_lo": kind_row["tuned_ci"][0], "ci_hi": kind_row["tuned_ci"][1],
-                "mcnemar_p": kind_row["mcnemar_p"], "sig": kind_row["sig"],
-                "floor": kind_row.get("floor"),
-            })
+            long_rows.append(
+                {
+                    "family": m["family"],
+                    "recipe": m["recipe"],
+                    "seed": m["seed"],
+                    "kind": kind_row["name"],
+                    "n": kind_row["n"],
+                    "base": kind_row["base"],
+                    "tuned": kind_row["tuned"],
+                    "delta_pp": kind_row["delta_pp"],
+                    "ci_lo": kind_row["tuned_ci"][0],
+                    "ci_hi": kind_row["tuned_ci"][1],
+                    "mcnemar_p": kind_row["mcnemar_p"],
+                    "sig": kind_row["sig"],
+                    "floor": kind_row.get("floor"),
+                }
+            )
     return {"long": long_rows}
 
 
@@ -137,8 +149,10 @@ def _overall_matrix_md(long_rows: list[dict]) -> str:
                     cells.append(f"{d:+.1f}±{sd:.1f} (n={len(rows)})")
         L.append(f"| {f} | " + " | ".join(cells) + " |")
     L.append("")
-    L.append("_Cell = mean Δpp across seeds; (sig)=McNemar for a single seed, "
-             "(Nseed)=averaged over N seeds. Judge against per-kind floors below._")
+    L.append(
+        "_Cell = mean Δpp across seeds; (sig)=McNemar for a single seed, "
+        "(Nseed)=averaged over N seeds. Judge against per-kind floors below._"
+    )
     return "\n".join(L)
 
 
@@ -160,15 +174,17 @@ def _per_kind_matrix_md(long_rows: list[dict]) -> str:
     L = ["### Per-kind Δaccuracy (pp), seed-averaged", ""]
     L.append("| Family / Recipe | " + " | ".join(kinds) + " |")
     L.append("|" + "---|" * (len(kinds) + 1))
-    for (f, rc) in fams_recs:
+    for f, rc in fams_recs:
         cells = []
         for k in kinds:
             v = cell.get((f, rc, k))
             cells.append(f"{statistics.mean(v):+.1f}" if v else "·")
         L.append(f"| {f} / {rc} | " + " | ".join(cells) + " |")
     L.append("")
-    L.append("_Q3 read: is Δ positive at low depth (td_or_fg, scrimmage_total) and "
-             "negative at high depth (team_points, hundred_yd_rec), consistently across families?_")
+    L.append(
+        "_Q3 read: is Δ positive at low depth (td_or_fg, scrimmage_total) and "
+        "negative at high depth (team_points, hundred_yd_rec), consistently across families?_"
+    )
     return "\n".join(L)
 
 
@@ -179,27 +195,53 @@ def write_outputs(runs: list[dict], out: str = "results") -> str:
     outdir.mkdir(parents=True, exist_ok=True)
 
     # CSV (long form)
-    cols = ["family", "recipe", "seed", "kind", "n", "base", "tuned",
-            "delta_pp", "ci_lo", "ci_hi", "mcnemar_p", "sig", "floor"]
+    cols = [
+        "family",
+        "recipe",
+        "seed",
+        "kind",
+        "n",
+        "base",
+        "tuned",
+        "delta_pp",
+        "ci_lo",
+        "ci_hi",
+        "mcnemar_p",
+        "sig",
+        "floor",
+    ]
     with (outdir / "aggregate.csv").open("w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=cols)
         w.writeheader()
         for row in long_rows:
             w.writerow(row)
 
-    md = ["# Aggregated results", "",
-          f"{len(runs)} run(s); "
-          f"{len({(r['meta']['family'], r['meta']['recipe']) for r in runs})} family x recipe cell(s).",
-          "", _overall_matrix_md(long_rows), "", _per_kind_matrix_md(long_rows), ""]
+    md = [
+        "# Aggregated results",
+        "",
+        f"{len(runs)} run(s); "
+        f"{len({(r['meta']['family'], r['meta']['recipe']) for r in runs})} family x recipe cell(s).",
+        "",
+        _overall_matrix_md(long_rows),
+        "",
+        _per_kind_matrix_md(long_rows),
+        "",
+    ]
     # pass@k learnability rollup if present
     pk = [r for r in runs if r.get("passk")]
     if pk:
-        md += ["### Base pass@k (learnability) — overall", "",
-               "| Family | pass@1 | pass@8 | pass@64 | frac_never |", "|---|---|---|---|---|"]
+        md += [
+            "### Base pass@k (learnability) — overall",
+            "",
+            "| Family | pass@1 | pass@8 | pass@64 | frac_never |",
+            "|---|---|---|---|---|",
+        ]
         for r in pk:
             o = r["passk"]["overall"]
-            md.append(f"| {r['meta']['family']} | {o.get('pass@1')} | {o.get('pass@8')} "
-                      f"| {o.get('pass@64')} | {o.get('frac_never')} |")
+            md.append(
+                f"| {r['meta']['family']} | {o.get('pass@1')} | {o.get('pass@8')} "
+                f"| {o.get('pass@64')} | {o.get('frac_never')} |"
+            )
         md.append("")
     (outdir / "aggregate.md").write_text("\n".join(md))
     return "\n".join(md)
@@ -211,7 +253,7 @@ def main():
     if "--out" in args:
         i = args.index("--out")
         out = args[i + 1]
-        del args[i:i + 2]
+        del args[i : i + 2]
     patterns = args or ["runs_downloaded/*/"]
     dirs = []
     for p in patterns:
