@@ -1,4 +1,4 @@
-# gridiron-grpo
+# tabular-reasoning-grpo
 
 **Teach a small language model to _reason_ over structured data — with reinforcement learning, on a single GPU, for the price of lunch.**
 
@@ -16,10 +16,10 @@ The domain is football (box scores, late-game situations) because verifiable spo
 
 ![GRPO base vs. tuned — SmolLM2 leaps; the saturated Qwen barely moves](assets/hero.png)
 
-| Model | Base | GRPO-tuned | Δ (3 seeds) | sig. |
-| --- | ---: | ---: | ---: | :--- |
-| **SmolLM2-1.7B** — weak base, room to learn | 5.0% | **19.2%** | **+14.2 ± 0.3pp** | `***` |
-| Qwen2.5-1.5B — already-capable base (control) | 29.4% | 30.0% | +0.6 ± 0.3pp | ns |
+| Model                                         |  Base | GRPO-tuned |       Δ (3 seeds) | sig.  |
+| --------------------------------------------- | ----: | ---------: | ----------------: | :---- |
+| **SmolLM2-1.7B** — weak base, room to learn   |  5.0% |  **19.2%** | **+14.2 ± 0.3pp** | `***` |
+| Qwen2.5-1.5B — already-capable base (control) | 29.4% |      30.0% |      +0.6 ± 0.3pp | ns    |
 
 SmolLM2 nearly **quadruples** its verifiable accuracy — well over 100 answers flip from wrong to right each seed, only a handful the other way — while Qwen, already ~29% off the shelf, has almost nothing left to reinforce. Same trainer, same data, same 1,200 steps. **The lesson: when a model is bad at a task, the better move is often the right _objective_ on a model with headroom, not a bigger model.**
 
@@ -27,14 +27,14 @@ SmolLM2 nearly **quadruples** its verifiable accuracy — well over 100 answers 
 
 **Where the gain comes from** — and where it doesn't (per task, base → GRPO):
 
-| Task | What it tests | Base | GRPO | Δ (pp) |
-| --- | --- | ---: | ---: | ---: |
-| `td_or_fg` | rule-based decision | 0.0% | 47.0% | **+47.0** |
-| `hundred_yd_rec` | set membership (≥100 rec yds) | 0.0% | 19.8% | +19.8 |
-| `total_tds` | sum touchdowns across players | 0.0% | 8.9% | +8.9 |
-| `most_scrimmage` | argmax over the table | 24.4% | 29.5% | +5.1 |
-| `scrimmage_total` | single-player rush + rec sum | 7.5% | 10.6% | +3.1 |
-| `team_points` | players' TDs (×6) + the FG/XP/2pt line | 0.0% | 0.0% | +0.0 |
+| Task              | What it tests                          |  Base |  GRPO |    Δ (pp) |
+| ----------------- | -------------------------------------- | ----: | ----: | --------: |
+| `td_or_fg`        | rule-based decision                    |  0.0% | 47.0% | **+47.0** |
+| `hundred_yd_rec`  | set membership (≥100 rec yds)          |  0.0% | 19.8% |     +19.8 |
+| `total_tds`       | sum touchdowns across players          |  0.0% |  8.9% |      +8.9 |
+| `most_scrimmage`  | argmax over the table                  | 24.4% | 29.5% |      +5.1 |
+| `scrimmage_total` | single-player rush + rec sum           |  7.5% | 10.6% |      +3.1 |
+| `team_points`     | players' TDs (×6) + the FG/XP/2pt line |  0.0% |  0.0% |      +0.0 |
 
 The flat `team_points` row is the honest other half of the story: composite arithmetic the base _never_ samples, so GRPO has nothing to reinforce. Gains track base pass@k headroom — full CIs, the paired McNemar test, and the multi-seed × multi-recipe matrix are in [`FINDINGS.md`](FINDINGS.md).
 
@@ -122,15 +122,15 @@ synthetic data ──▶ verifiable reward ──▶ GRPO loop ──▶ tuned m
  src/data/          src/rewards/          src/train_grpo.py            agent/
 ```
 
-| Piece            | File                                         | What it does                                                                              |
-| ---------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Data generators  | `src/data/generators.py`, `tasks.py`         | Seeded box scores / game states → 6 verifiable task types                                 |
-| Reward functions | `src/rewards/verifiers.py`                   | correctness + format, the contract the model is trained against                           |
-| Training         | `src/train_grpo.py`                          | TRL `GRPOTrainer` + LoRA + vLLM rollouts                                                  |
-| Eval harness     | `src/eval/evaluate.py`                       | Same correctness check as training → honest accuracy, by task type                        |
-| Reporting        | `src/eval/make_chart.py`, `make_hero.py`, `results_to_md.py` | The per-run before/after chart, the two-model hero figure, and the markdown table |
-| Agent wrapper    | `agent/`                                     | Wraps the tuned model as a runnable, framework-agnostic tool; includes the registration _pattern_ for NVIDIA's NeMo Agent Toolkit |
-| NeMo Gym env     | `environments/tabular_reasoning/`            | The same reward suite as a Prime Intellect [`verifiers`](https://github.com/PrimeIntellect-ai/verifiers) environment — the packaging NVIDIA [NeMo Gym](https://github.com/NVIDIA-NeMo/Gym) loads via `vf.load_environment("tabular-reasoning")`. Imports the _exact_ checker (no second copy); runs end-to-end on verifiers 0.1.14 (`environments/tabular_reasoning/tests`) |
+| Piece            | File                                                         | What it does                                                                                                                                                                                                                                                                                                                                                                |
+| ---------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Data generators  | `src/data/generators.py`, `tasks.py`                         | Seeded box scores / game states → 6 verifiable task types                                                                                                                                                                                                                                                                                                                   |
+| Reward functions | `src/rewards/verifiers.py`                                   | correctness + format, the contract the model is trained against                                                                                                                                                                                                                                                                                                             |
+| Training         | `src/train_grpo.py`                                          | TRL `GRPOTrainer` + LoRA + vLLM rollouts                                                                                                                                                                                                                                                                                                                                    |
+| Eval harness     | `src/eval/evaluate.py`                                       | Same correctness check as training → honest accuracy, by task type                                                                                                                                                                                                                                                                                                          |
+| Reporting        | `src/eval/make_chart.py`, `make_hero.py`, `results_to_md.py` | The per-run before/after chart, the two-model hero figure, and the markdown table                                                                                                                                                                                                                                                                                           |
+| Agent wrapper    | `agent/`                                                     | Wraps the tuned model as a runnable, framework-agnostic tool; includes the registration _pattern_ for NVIDIA's NeMo Agent Toolkit                                                                                                                                                                                                                                           |
+| NeMo Gym env     | `environments/tabular_reasoning/`                            | The same reward suite as a Prime Intellect [`verifiers`](https://github.com/PrimeIntellect-ai/verifiers) environment — the packaging NVIDIA [NeMo Gym](https://github.com/NVIDIA-NeMo/Gym) loads via `vf.load_environment("tabular-reasoning")`. Imports the _exact_ checker (no second copy); runs end-to-end on verifiers 0.1.14 (`environments/tabular_reasoning/tests`) |
 
 ## Make it yours
 
